@@ -58,7 +58,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     const check = () => {
-      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('rh_token') : null;
       setIsAuthenticated(!!token);
     };
     check();
