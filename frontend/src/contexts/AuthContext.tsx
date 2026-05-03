@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import { api, getErrorMessage } from '@/lib/api';
 import { applyBrandColor } from '@/lib/utils';
+import { AUTH_TOKEN_KEY } from '@/lib/constants';
 import type { AuthUser, ApiResponse } from '@/types';
 
 interface AuthContextValue {
@@ -31,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    const token = localStorage.getItem('rh_token');
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (!token) {
       setIsLoading(false);
       return;
@@ -44,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('rh_user', JSON.stringify(u));
       applyOrgBranding(u.organization);
     } catch {
-      localStorage.removeItem('rh_token');
+      localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem('rh_user');
       setUser(null);
     } finally {
@@ -68,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.post<ApiResponse<{ token: string; user: AuthUser; redirect: string }>>('/auth/login', { email, password });
     const data = res.data.data;
 
-    localStorage.setItem('rh_token', data.token);
+    localStorage.setItem(AUTH_TOKEN_KEY, data.token);
     localStorage.setItem('rh_user', JSON.stringify(data.user));
     setUser(data.user);
     applyOrgBranding(data.user.organization);
@@ -80,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post('/auth/logout');
     } catch {}
-    localStorage.removeItem('rh_token');
+    localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem('rh_user');
     setUser(null);
     window.location.href = '/login';
