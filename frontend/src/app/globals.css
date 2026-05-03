@@ -1,0 +1,423 @@
+@import "tailwindcss";
+
+/* ══════════════════════════════════════════════════════════════════
+   LIGHT MODE — Default
+══════════════════════════════════════════════════════════════════ */
+:root {
+  /* Backgrounds */
+  --bg-page:      #F8F9FC;
+  --bg-surface:   #FFFFFF;
+  --bg-elevated:  #FFFFFF;
+  --bg-subtle:    #F1F3F8;
+  --bg-hover:     #EEF0F6;
+  --bg-active:    #E8EBF4;
+
+  /* Borders */
+  --border-subtle: #E4E7EF;
+  --border-strong: #CDD2E0;
+  --border-focus:  #6366F1;
+
+  /* Brand — blue-indigo */
+  --brand:          #4F6EF7;
+  --brand-hover:    #3B5BE8;
+  --brand-subtle:   #EEF1FE;
+  --brand-border:   #C7D0FC;
+
+  /* Accent — emerald */
+  --accent:         #059669;
+  --accent-hover:   #047857;
+  --accent-subtle:  #ECFDF5;
+  --accent-border:  #A7F3D0;
+
+  /* Semantic */
+  --success:        #059669;
+  --success-subtle: #ECFDF5;
+  --success-border: #6EE7B7;
+  --warning:        #D97706;
+  --warning-subtle: #FFFBEB;
+  --warning-border: #FCD34D;
+  --danger:         #DC2626;
+  --danger-subtle:  #FEF2F2;
+  --danger-border:  #FECACA;
+  --info:           #0284C7;
+  --info-subtle:    #F0F9FF;
+  --info-border:    #BAE6FD;
+  --purple:         #7C3AED;
+  --purple-subtle:  rgba(124,58,237,0.08);
+  --purple-border:  rgba(124,58,237,0.20);
+
+  /* Text */
+  --text-primary:   #0F1629;
+  --text-secondary: #4A5578;
+  --text-tertiary:  #8592AD;
+  --text-disabled:  #BCC4D6;
+  --text-on-brand:  #FFFFFF;
+
+  /* Shadows — multi-layer, premium */
+  --shadow-xs:      0 1px 2px rgba(15,22,41,0.04);
+  --shadow-sm:      0 1px 3px rgba(15,22,41,0.06), 0 1px 2px rgba(15,22,41,0.04);
+  --shadow-md:      0 4px 6px -1px rgba(15,22,41,0.06), 0 2px 4px -2px rgba(15,22,41,0.04);
+  --shadow-lg:      0 10px 15px -3px rgba(15,22,41,0.08), 0 4px 6px -4px rgba(15,22,41,0.04);
+  --shadow-xl:      0 20px 25px -5px rgba(15,22,41,0.08), 0 8px 10px -6px rgba(15,22,41,0.04);
+  --shadow-card:    0 2px 6px rgba(15,22,41,0.07), 0 1px 2px rgba(15,22,41,0.04), 0 0 0 1px rgba(15,22,41,0.03);
+  --shadow-dropdown:0 4px 6px -2px rgba(15,22,41,0.05), 0 12px 16px -4px rgba(15,22,41,0.08), 0 0 0 1px rgba(15,22,41,0.06);
+  --shadow-modal:   0 20px 60px rgba(15,22,41,0.12), 0 0 0 1px rgba(15,22,41,0.05);
+  --shadow-brand-glow:  0 4px 14px rgba(79,110,247,0.25);
+  --shadow-accent-glow: 0 4px 14px rgba(5,150,105,0.20);
+
+  /* Legacy aliases */
+  --bg-base:        var(--bg-page);
+  --rh-bg-page:     var(--bg-page);
+  --rh-bg-card:     var(--bg-surface);
+  --rh-bg-input:    var(--bg-subtle);
+  --rh-bg-hover:    var(--bg-hover);
+  --rh-sidebar-bg:  var(--bg-surface);
+  --rh-header-bg:   rgba(248,249,252,0.9);
+  --rh-text-primary:   var(--text-primary);
+  --rh-text-secondary: var(--text-secondary);
+  --rh-text-muted:     var(--text-tertiary);
+  --rh-border:         var(--border-subtle);
+  --rh-border-subtle:  var(--border-subtle);
+  --rh-accent:         var(--brand);
+  --rh-accent-hover:   var(--brand-hover);
+  --rh-accent-glow:    var(--shadow-brand-glow);
+
+  /* Old dark-only names mapped to light equivalents */
+  --bg-elevated:    #FFFFFF;
+  --border:         var(--border-subtle);
+  --border-strong-old: var(--border-strong);
+  --text-1: var(--text-primary);
+  --text-2: var(--text-secondary);
+  --text-3: var(--text-tertiary);
+}
+
+
+/* ── Sidebar width (set by SidebarContext) ───────────────────────── */
+:root { --sidebar-w: 240px; }
+@media (min-width: 1024px) {
+  .main-content {
+    margin-left: var(--sidebar-w);
+    transition: margin-left 250ms cubic-bezier(0.4,0,0.2,1);
+  }
+}
+
+/* ── Base reset ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; padding: 0; }
+
+html {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible { outline: none; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 5px; height: 5px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+/* ── Skeleton shimmer ────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400% 0; }
+  100% { background-position:  400% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle)  25%,
+    var(--bg-hover)   50%,
+    var(--bg-subtle)  75%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.8s infinite;
+  border-radius: 8px;
+}
+
+/* ── Entry animations ────────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.animate-fade-up        { animation: fade-up 0.25s ease-out; }
+.animate-slide-in-right { animation: slide-in-right 0.3s cubic-bezier(0.16,1,0.3,1); }
+
+/* ── Rider pin pulse ─────────────────────────────────────────────── */
+.rider-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+/* ── Theme toggle pill ───────────────────────────────────────────── */
+@keyframes toggle-thumb {
+  from { transform: translateX(0); }
+  to   { transform: translateX(24px); }
+}
+
+/* ── Chart card ──────────────────────────────────────────────────── */
+.chart-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+
+/* ── Map tiles ───────────────────────────────────────────────────── */
+.leaflet-container {
+  background: var(--bg-page) !important;
+}
+.leaflet-control-zoom a {
+  background: var(--bg-surface) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-subtle) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+}
+.leaflet-control-attribution {
+  background: var(--bg-surface) !important;
+  color: var(--text-tertiary) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+
+/* ── Brand-color overrides ───────────────────────────────────────── */
+/* All focus rings and borders that were hardcoded to emerald now
+   track the org's --brand custom property set by applyBrandColor() */
+.focus\:border-emerald-500:focus,
+.focus\:border-emerald-500\/50:focus {
+  border-color: var(--brand) !important;
+}
+
+/* Toggle switches that used bg-emerald-500 */
+.bg-emerald-500 {
+  background-color: var(--brand) !important;
+}
+
+/* Subtle emerald backgrounds (avatar rings, etc.) */
+.bg-emerald-500\/10,
+.bg-emerald-500\/15,
+.bg-emerald-500\/20 {
+  background-color: var(--brand-subtle) !important;
+}
+
+/* Emerald text */
+.text-emerald-400,
+.text-emerald-500 {
+  color: var(--brand) !important;
+}
+
+/* Emerald borders */
+.border-emerald-500\/20,
+.border-emerald-500\/50 {
+  border-color: var(--brand-border) !important;
+}
+
+/* ── Tailwind v4 custom breakpoint ──────────────────────────────── */
+@theme {
+  --breakpoint-xs: 30rem;
+}
+
+/* ── Animation easing variables ─────────────────────────────────── */
+:root {
+  --ease-standard:   cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring:     cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ── Safe area support ───────────────────────────────────────────── */
+.mobile-header {
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+.bottom-nav {
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  height: calc(64px + env(safe-area-inset-bottom));
+}
+.page-mobile-bottom {
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+/* ── Touch interaction base ──────────────────────────────────────── */
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+button:active:not(:disabled),
+a:active {
+  transform: scale(0.97);
+  transition: transform 100ms ease;
+}
+
+/* ── Mobile typography scale ─────────────────────────────────────── */
+@media (max-width: 767px) {
+  .text-h1, h1 { font-size: 20px !important; }
+  .text-h2, h2 { font-size: 18px !important; }
+  .text-metric { font-size: 22px !important; }
+}
+
+/* ── Table / card-list toggle ────────────────────────────────────── */
+@media (max-width: 767px) {
+  .data-table  { display: none !important; }
+  .mobile-cards { display: block !important; }
+}
+@media (min-width: 768px) {
+  .data-table  { display: block !important; }
+  .mobile-cards { display: none !important; }
+}
+
+/* ── Horizontal snap scroll for quick actions ────────────────────── */
+.snap-scroll-x {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+.snap-scroll-x::-webkit-scrollbar { display: none; }
+.snap-scroll-x > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* ── Bottom sheet drag handle ────────────────────────────────────── */
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--border-strong);
+  border-radius: 2px;
+  margin: 12px auto 0;
+}
+
+/* ── Smooth scrolling on iOS ─────────────────────────────────────── */
+.scroll-ios {
+  -webkit-overflow-scrolling: touch;
+  overflow-y: auto;
+}
+
+/* ── Mobile filter chips horizontal scroll ───────────────────────── */
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+.filter-chips::-webkit-scrollbar { display: none; }
+.filter-chip {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.filter-chip.active {
+  background: var(--brand-subtle);
+  color: var(--brand);
+  border-color: var(--brand-border);
+}
+
+/* ── Mobile section accordion ────────────────────────────────────── */
+.accordion-content {
+  overflow: hidden;
+  transition: max-height 250ms var(--ease-decelerate);
+}
+
+/* ── Quick actions: scroll on mobile, grid on desktop ─────────────── */
+.quick-actions-grid {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+.quick-actions-grid::-webkit-scrollbar { display: none; }
+.quick-actions-grid > * { scroll-snap-align: start; flex-shrink: 0; }
+
+@media (min-width: 1024px) {
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    overflow-x: visible;
+    scroll-snap-type: none;
+    padding-bottom: 0;
+  }
+  .quick-actions-grid > * { flex-shrink: unset; }
+}
+
+/* ── Standardized select / dropdown ─────────────────────────────── */
+.rh-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 38px;
+  padding: 0 36px 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.rh-select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-subtle);
+}
+.rh-select:hover:not(:focus) {
+  border-color: var(--border-strong);
+}
+
+/* ── Floating panel (no hard border, soft shadow only) ──────────── */
+/* Panels / table containers shed their border and float on shadow. */
+.rh-panel {
+  box-shadow: var(--shadow-card);
+  border: none;
+}
+
+/* Override Tailwind border on .data-table containers */
+.data-table {
+  box-shadow: var(--shadow-card) !important;
+}
+
