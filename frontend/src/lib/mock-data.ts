@@ -421,6 +421,62 @@ export const MOCK_ROUTES_NORM = MOCK_ROUTES.map(route => ({
   })),
 }));
 
+// MOCK_LIVE_RIDERS — LiveRider[] shape required by LiveTrackingMap
+export const MOCK_LIVE_RIDERS = MOCK_RIDER_POSITIONS.map((pos) => {
+  const rider = MOCK_RIDERS.find(r => r.id === pos.rider_id)!;
+  const route = MOCK_ROUTES.find(r => r.id === pos.route_id);
+  const stops = route?.stops ?? [];
+  const completedStops = stops.filter(s => ['completed', 'collected'].includes(s.status)).length;
+  const currentStop = stops.find(s => !['completed', 'collected', 'failed'].includes(s.status)) ?? null;
+  return {
+    route_id: pos.route_id,
+    rider: {
+      id: rider.id,
+      name: rider.name,
+      phone: rider.phone,
+      photo_url: rider.photo_url,
+      vehicle_type: rider.vehicle_type as any,
+    },
+    status: 'in_progress' as any,
+    total_stops: stops.length,
+    completed_stops: completedStops,
+    completion_percentage: stops.length > 0 ? Math.round((completedStops / stops.length) * 100) : 0,
+    current_stop: currentStop ? {
+      id: 0,
+      sequence: 0,
+      task_id: 0,
+      facility: currentStop.facility ? {
+        id: currentStop.facility.id,
+        name: currentStop.facility.name,
+        city: currentStop.facility.city,
+        latitude: currentStop.facility.latitude,
+        longitude: currentStop.facility.longitude,
+        contact_phone: '',
+        special_notes: null,
+        facility_type: 'clinic' as any,
+      } : null,
+      status: currentStop.status as any,
+      planned_arrival: currentStop.planned_arrival,
+      actual_arrival: null,
+      delay_minutes: null,
+      fail_reason: null,
+      fail_notes: null,
+      whatsapp_sent: false,
+      pickup_photo: null,
+      delivery_photo: null,
+      whatsapp_confirmation: null,
+    } : null,
+    next_stop: null,
+    latest_location: {
+      latitude: pos.lat,
+      longitude: pos.lng,
+      recorded_at: new Date().toISOString(),
+    },
+    has_disputes: false,
+    eta_next_stop: null,
+  };
+});
+
 // ── Super Admin mock data ──────────────────────────────────────────────────
 
 export const MOCK_ORGANIZATIONS = [
@@ -482,3 +538,75 @@ export const MOCK_PLATFORM_STATS = {
   tasks_processed_today: 41,
   platform_uptime: '99.98%',
 };
+
+export const MOCK_PLATFORM_USERS = [
+  { id: 1,  name: 'Super Admin',      email: 'super@routehealth.com',  role: 'super_admin',  org_id: null, org_name: '— Platform —',              is_active: true,  last_login: '2026-05-05T08:12:00Z' },
+  { id: 2,  name: 'James Kariuki',    email: 'james@pathcare.ke',       role: 'org_admin',    org_id: 1,    org_name: 'PathCare Diagnostics Kenya', is_active: true,  last_login: '2026-05-05T07:44:00Z' },
+  { id: 3,  name: 'Dispatch Ops',     email: 'dispatch@pathcare.ke',    role: 'dispatcher',   org_id: 1,    org_name: 'PathCare Diagnostics Kenya', is_active: true,  last_login: '2026-05-05T06:30:00Z' },
+  { id: 4,  name: 'Lab Nairobi',      email: 'lab@pathcare.ke',         role: 'lab_manager',  org_id: 1,    org_name: 'PathCare Diagnostics Kenya', is_active: true,  last_login: '2026-05-04T15:22:00Z' },
+  { id: 5,  name: 'Amina Juma',       email: 'amina@lifelab.tz',        role: 'org_admin',    org_id: 2,    org_name: 'LifeLab Tanzania',           is_active: true,  last_login: '2026-05-05T09:01:00Z' },
+  { id: 6,  name: 'Ops Dar',          email: 'ops@lifelab.tz',          role: 'dispatcher',   org_id: 2,    org_name: 'LifeLab Tanzania',           is_active: true,  last_login: '2026-05-04T18:00:00Z' },
+  { id: 7,  name: 'Lab Dar',          email: 'lab@lifelab.tz',          role: 'lab_manager',  org_id: 2,    org_name: 'LifeLab Tanzania',           is_active: false, last_login: '2026-04-28T11:00:00Z' },
+  { id: 8,  name: 'Robert Okello',    email: 'robert@medexpress.ug',    role: 'org_admin',    org_id: 3,    org_name: 'MedExpress Uganda',          is_active: true,  last_login: '2026-05-03T14:10:00Z' },
+  { id: 9,  name: 'Dispatch Kampala', email: 'dispatch@medexpress.ug',  role: 'dispatcher',   org_id: 3,    org_name: 'MedExpress Uganda',          is_active: true,  last_login: '2026-05-05T07:55:00Z' },
+  { id: 10, name: 'Marie Uwase',      email: 'marie@sanilab.rw',        role: 'org_admin',    org_id: 4,    org_name: 'SaniLab Rwanda',             is_active: false, last_login: '2026-03-10T09:00:00Z' },
+];
+
+export const MOCK_PERMISSIONS = [
+  { key: 'manage_organizations',      label: 'Manage Organizations',    category: 'Platform',    roles: ['super_admin'] },
+  { key: 'manage_platform_settings',  label: 'Manage Platform Settings',category: 'Platform',    roles: ['super_admin'] },
+  { key: 'manage_facilities',         label: 'Manage Facilities',       category: 'Operations',  roles: ['super_admin', 'org_admin'] },
+  { key: 'manage_riders',             label: 'Manage Riders',           category: 'Operations',  roles: ['super_admin', 'org_admin'] },
+  { key: 'manage_users',              label: 'Manage Users',            category: 'Operations',  roles: ['super_admin', 'org_admin'] },
+  { key: 'manage_tasks',              label: 'Manage Tasks',            category: 'Dispatch',    roles: ['super_admin', 'org_admin', 'dispatcher'] },
+  { key: 'manage_routes',             label: 'Manage Routes',           category: 'Dispatch',    roles: ['super_admin', 'org_admin', 'dispatcher'] },
+  { key: 'view_live_tracking',        label: 'View Live Tracking',      category: 'Dispatch',    roles: ['super_admin', 'org_admin', 'dispatcher'] },
+  { key: 'view_analytics',            label: 'View Analytics',          category: 'Reports',     roles: ['super_admin', 'org_admin', 'dispatcher'] },
+  { key: 'export_reports',            label: 'Export Reports',          category: 'Reports',     roles: ['super_admin', 'org_admin'] },
+  { key: 'manage_org_settings',       label: 'Manage Org Settings',     category: 'Settings',    roles: ['super_admin', 'org_admin'] },
+  { key: 'view_own_pickups',          label: 'View Own Pickups',        category: 'Lab',         roles: ['super_admin', 'org_admin', 'lab_manager'] },
+  { key: 'confirm_receipt',           label: 'Confirm Receipt',         category: 'Lab',         roles: ['super_admin', 'org_admin', 'lab_manager'] },
+  { key: 'view_custody_photos',       label: 'View Custody Photos',     category: 'Lab',         roles: ['super_admin', 'org_admin', 'dispatcher', 'lab_manager'] },
+];
+
+export const MOCK_ROLES = [
+  { key: 'super_admin',  label: 'Super Admin',  description: 'Full platform access — RouteHealth team only',          color: 'purple',  user_count: 1 },
+  { key: 'org_admin',    label: 'Org Admin',    description: 'Full access to their organisation — no cross-org data', color: 'brand',   user_count: 4 },
+  { key: 'dispatcher',   label: 'Dispatcher',   description: 'Daily routing, live tracking, and operational screens', color: 'info',    user_count: 3 },
+  { key: 'lab_manager',  label: 'Lab Manager',  description: 'Read-only portal — pickups and confirmations only',     color: 'success', user_count: 2 },
+  { key: 'rider',        label: 'Rider',        description: 'Mobile app only — no web dashboard access',             color: 'gray',    user_count: 16 },
+];
+
+export const MOCK_REVENUE = {
+  mrr: 1420,
+  arr: 17040,
+  active_subscriptions: 3,
+  churned_this_month: 1,
+  mrr_growth: 18.4,
+  by_plan: [
+    { plan: 'Starter',      orgs: 1, monthly: 50,  total: 50  },
+    { plan: 'Professional', orgs: 1, monthly: 120, total: 120 },
+    { plan: 'Enterprise',   orgs: 1, monthly: 250, total: 250 },
+  ],
+  monthly_trend: [
+    { month: 'Nov 25', mrr: 250 }, { month: 'Dec 25', mrr: 500 },
+    { month: 'Jan 26', mrr: 750 }, { month: 'Feb 26', mrr: 870 },
+    { month: 'Mar 26', mrr: 1120 }, { month: 'Apr 26', mrr: 1200 },
+    { month: 'May 26', mrr: 1420 },
+  ],
+};
+
+export const MOCK_AUDIT_LOG = [
+  { id: 1,  actor: 'Super Admin',    actor_role: 'super_admin', action: 'org.suspended',        target: 'SaniLab Rwanda',              org: null,                      ts: '2026-05-04T14:22:00Z', severity: 'warning' },
+  { id: 2,  actor: 'James Kariuki',  actor_role: 'org_admin',   action: 'rider.created',         target: 'Grace Achieng',               org: 'PathCare Diagnostics Kenya', ts: '2026-05-04T09:10:00Z', severity: 'info' },
+  { id: 3,  actor: 'Dispatch Ops',   actor_role: 'dispatcher',  action: 'route.dispatched',      target: 'Route #201 — 5 stops',        org: 'PathCare Diagnostics Kenya', ts: '2026-05-05T06:45:00Z', severity: 'info' },
+  { id: 4,  actor: 'Amina Juma',     actor_role: 'org_admin',   action: 'user.invited',          target: 'ops@lifelab.tz',              org: 'LifeLab Tanzania',           ts: '2026-05-03T11:30:00Z', severity: 'info' },
+  { id: 5,  actor: 'Super Admin',    actor_role: 'super_admin', action: 'platform.settings',     target: 'WhatsApp API updated',        org: null,                         ts: '2026-05-02T16:00:00Z', severity: 'info' },
+  { id: 6,  actor: 'Lab Dar',        actor_role: 'lab_manager', action: 'receipt.disputed',      target: 'Stop #112 — LifeLab Dar',     org: 'LifeLab Tanzania',           ts: '2026-05-02T13:15:00Z', severity: 'danger' },
+  { id: 7,  actor: 'Robert Okello',  actor_role: 'org_admin',   action: 'facility.created',      target: 'Kampala General Hospital',    org: 'MedExpress Uganda',          ts: '2026-05-01T10:05:00Z', severity: 'info' },
+  { id: 8,  actor: 'Super Admin',    actor_role: 'super_admin', action: 'org.created',           target: 'MedExpress Uganda',           org: null,                         ts: '2026-01-20T08:00:00Z', severity: 'info' },
+  { id: 9,  actor: 'Dispatch Ops',   actor_role: 'dispatcher',  action: 'task.bulk_uploaded',    target: '23 tasks — 2026-05-05',       org: 'PathCare Diagnostics Kenya', ts: '2026-05-05T06:10:00Z', severity: 'info' },
+  { id: 10, actor: 'Ops Dar',        actor_role: 'dispatcher',  action: 'route.dispatched',      target: 'Route #202 — 7 stops',        org: 'LifeLab Tanzania',           ts: '2026-05-05T07:00:00Z', severity: 'info' },
+  { id: 11, actor: 'Marie Uwase',    actor_role: 'org_admin',   action: 'user.deactivated',      target: 'lab@sanilab.rw',              org: 'SaniLab Rwanda',             ts: '2026-03-10T12:00:00Z', severity: 'warning' },
+  { id: 12, actor: 'James Kariuki',  actor_role: 'org_admin',   action: 'settings.branding',     target: 'Logo and color updated',      org: 'PathCare Diagnostics Kenya', ts: '2026-04-30T15:40:00Z', severity: 'info' },
+];

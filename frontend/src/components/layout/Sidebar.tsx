@@ -8,6 +8,7 @@ import {
   LayoutDashboard, Building2, Settings, Users, MapPin, Truck,
   ClipboardList, Route, Activity, BarChart3, History,
   LogOut, Zap, ChevronLeft, ChevronRight,
+  Shield, DollarSign, FileText,
 } from 'lucide-react';
 
 interface NavItem    { label: string; href: string; icon: React.ElementType; badge?: number }
@@ -17,9 +18,28 @@ const navConfig: Record<string, NavSection[]> = {
   super_admin: [
     {
       items: [
-        { label: 'Platform Overview',  href: '/super-admin',              icon: LayoutDashboard },
-        { label: 'Organizations',      href: '/super-admin/organizations', icon: Building2 },
-        { label: 'Platform Settings',  href: '/super-admin/settings',      icon: Settings },
+        { label: 'Platform Overview', href: '/super-admin',              icon: LayoutDashboard },
+        { label: 'Organizations',     href: '/super-admin/organizations', icon: Building2 },
+      ],
+    },
+    {
+      title: 'Management',
+      items: [
+        { label: 'Platform Users',      href: '/super-admin/users', icon: Users },
+        { label: 'Roles & Permissions', href: '/super-admin/roles', icon: Shield },
+      ],
+    },
+    {
+      title: 'Finance',
+      items: [
+        { label: 'Revenue & Billing', href: '/super-admin/revenue', icon: DollarSign },
+      ],
+    },
+    {
+      title: 'System',
+      items: [
+        { label: 'Audit Log',          href: '/super-admin/audit-log', icon: FileText },
+        { label: 'Platform Settings',  href: '/super-admin/settings',  icon: Settings },
       ],
     },
   ],
@@ -115,16 +135,14 @@ export function Sidebar() {
 
   return (
     <aside
-      className="fixed left-0 top-0 h-full flex flex-col z-30"
+      className="fixed left-0 top-0 h-full z-30"
       style={{
         width: collapsed ? 64 : 240,
         transition: 'width 250ms cubic-bezier(0.4,0,0.2,1)',
-        background: 'var(--bg-surface)',
-        borderRight: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-sm)',
-        overflow: 'hidden',
       }}
     >
+      {/* Inner clip wrapper — clips nav text during animation but not the toggle button */}
+      <div className="flex flex-col h-full" style={{ background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', width: '100%' }}>
       {/* Logo */}
       <div
         className="flex items-center gap-3 flex-shrink-0"
@@ -330,15 +348,18 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Collapse toggle button — right edge */}
+      </div>
+
+      {/* Collapse toggle — lives on the aside (not inside the clipped div) so it renders above page content */}
       <button
         onClick={toggle}
-        className="absolute flex items-center justify-center rounded-full transition-all duration-150 z-40"
+        className="absolute flex items-center justify-center rounded-full transition-all duration-150"
         style={{
           top: 72,
           right: -12,
           width: 24,
           height: 24,
+          zIndex: 50,
           background: 'var(--bg-surface)',
           border: '1px solid var(--border-subtle)',
           boxShadow: 'var(--shadow-sm)',
