@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Navigation, Clock, AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
-import { MOCK_ROUTES_NORM as MOCK_ROUTES, MOCK_RIDERS_NORM as MOCK_RIDERS, MOCK_FACILITIES, MOCK_RIDER_POSITIONS } from '@/lib/mock-data';
+import { MOCK_ROUTES_NORM as MOCK_ROUTES, MOCK_RIDERS_NORM as MOCK_RIDERS, MOCK_FACILITIES, MOCK_LIVE_RIDERS } from '@/lib/mock-data';
 import dynamic from 'next/dynamic';
 
 const LiveTrackingMap = dynamic(() => import('@/components/maps/LiveTrackingMap'), { ssr: false });
@@ -125,7 +125,7 @@ export default function LiveTrackingPage() {
 
       {/* Map */}
       <div className="hidden lg:flex flex-1 relative" style={{ background: 'var(--bg-page)' }}>
-        {(() => { const M = LiveTrackingMap as any; return <M riders={MOCK_RIDER_POSITIONS} selectedRiderId={selectedRiderId} />; })()}
+        {(() => { const M = LiveTrackingMap as any; return <M riders={MOCK_LIVE_RIDERS} selectedRiderId={selectedRiderId} />; })()}
       </div>
 
       {/* Route detail drawer (desktop) */}
