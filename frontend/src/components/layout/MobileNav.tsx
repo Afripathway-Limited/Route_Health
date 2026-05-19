@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, MapPin, Truck, BarChart3, MoreHorizontal,
   ClipboardList, Route, Activity, History, User, Building2,
-  Settings, Users, X, LogOut, Zap,
+  Settings, Users, X, LogOut, Zap, Shield, DollarSign, FileText,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMobileNav } from '@/contexts/MobileNavContext';
@@ -41,7 +41,7 @@ const bottomTabs: Record<string, BottomTab[]> = {
   super_admin: [
     { label: 'Overview', href: '/super-admin',               icon: LayoutDashboard },
     { label: 'Orgs',     href: '/super-admin/organizations', icon: Building2 },
-    { label: 'Settings', href: '/super-admin/settings',      icon: Settings },
+    { label: 'Users',    href: '/super-admin/users',         icon: Users },
     { label: 'More',     href: '#',                          icon: MoreHorizontal, isMore: true },
   ],
 };
@@ -78,9 +78,13 @@ const drawerNav: Record<string, DrawerNavItem[]> = {
   ],
   super_admin: [
     { label: 'Platform Overview',  href: '/super-admin',               icon: LayoutDashboard },
-    { label: 'Organizations',      href: '/super-admin/organizations',  icon: Building2 },
-    { label: 'Platform Settings',  href: '/super-admin/settings',       icon: Settings },
-    { label: 'Profile',            href: '/profile',                    icon: User, section: 'Account' },
+    { label: 'Organizations',      href: '/super-admin/organizations',  icon: Building2,     section: 'Platform' },
+    { label: 'Platform Users',     href: '/super-admin/users',          icon: Users,         section: 'Management' },
+    { label: 'Roles & Permissions',href: '/super-admin/roles',          icon: Shield,        section: 'Management' },
+    { label: 'Revenue & Billing',  href: '/super-admin/revenue',        icon: DollarSign,    section: 'Finance' },
+    { label: 'Audit Log',          href: '/super-admin/audit-log',      icon: FileText,      section: 'System' },
+    { label: 'Platform Settings',  href: '/super-admin/settings',       icon: Settings,      section: 'System' },
+    { label: 'Profile',            href: '/profile',                    icon: User,          section: 'Account' },
   ],
 };
 
