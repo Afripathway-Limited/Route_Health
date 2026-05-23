@@ -1,145 +1,185 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import type { LiveRider } from '@/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
+import type { LiveRider, AllRider } from '@/types';
+import { GOOGLE_MAPS_LIBRARIES } from '@/lib/google-maps';
 import { getRiderColor, vehicleIcon } from '@/lib/utils';
+
+const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+const DEFAULT_CENTER = { lat: -1.2921, lng: 36.8219 };
+
+const AVAIL_COLORS: Record<string, string> = {
+  free: '#059669', on_route: '#4F6EF7', busy: '#f59e0b', unavailable: '#9ca3af',
+};
+
+const DARK_STYLES: google.maps.MapTypeStyle[] = [
+  { elementType: 'geometry', stylers: [{ color: '#212121' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#212121' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#373737' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3c3c3c' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#000000' }] },
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+];
+
+const LIGHT_STYLES: google.maps.MapTypeStyle[] = [
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+];
 
 interface Props {
   riders: LiveRider[];
+  allRiders: AllRider[];
   selectedRiderId: number | null;
-  mapId?: string;
 }
-
-const DEFAULT_CENTER: [number, number] = [-1.2921, 36.8219];
-
-const TILE_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-const TILE_ATTR  = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/">CARTO</a>';
 
 function isDark() {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 }
 
-export default function LiveTrackingMap({ riders, selectedRiderId, mapId = 'live-tracking-map' }: Props) {
-  const mapRef      = useRef<any>(null);
-  const tileRef     = useRef<any>(null);
-  const markersRef  = useRef<Map<number, any>>(new Map());
-  const containerId = mapId;
+export default function LiveTrackingMap({ riders, allRiders, selectedRiderId }: Props) {
+  const { isLoaded } = useJsApiLoader({ googleMapsApiKey: API_KEY, id: 'rh-google-maps', libraries: GOOGLE_MAPS_LIBRARIES });
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const [dark, setDark] = useState(isDark());
+  const [openPopupId, setOpenPopupId] = useState<string | null>(null);
 
-  // Initialize map
+  const onLoad = useCallback((map: google.maps.Map) => {
+    mapRef.current = map;
+  }, []);
+
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const init = async () => {
-      const L = (await import('leaflet')).default;
-      await import('leaflet/dist/leaflet.css');
-
-      const container = document.getElementById(containerId);
-      if (!container || (container as any)._leaflet_id) return;
-
-      const map = L.map(containerId).setView(DEFAULT_CENTER, 12);
-      mapRef.current = map;
-
-      tileRef.current = L.tileLayer(isDark() ? TILE_DARK : TILE_LIGHT, {
-        attribution: TILE_ATTR,
-        maxZoom: 19,
-      }).addTo(map);
-    };
-
-    init();
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-        tileRef.current = null;
-        markersRef.current.clear();
-      }
-    };
-  }, [containerId]);
-
-  // Watch theme changes via MutationObserver on <html> classList
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const observer = new MutationObserver(async () => {
-      if (!mapRef.current || !tileRef.current) return;
-      const L = (await import('leaflet')).default;
-      tileRef.current.remove();
-      tileRef.current = L.tileLayer(isDark() ? TILE_DARK : TILE_LIGHT, {
-        attribution: TILE_ATTR,
-        maxZoom: 19,
-      }).addTo(mapRef.current);
-    });
-
+    const observer = new MutationObserver(() => setDark(isDark()));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
 
-  // Update markers on rider data change
+  // Pan to selected rider — live riders first, then coverage-based
   useEffect(() => {
-    if (!mapRef.current || typeof window === 'undefined') return;
+    if (!mapRef.current || !selectedRiderId) return;
+    const live = riders.find(r => r.rider.id === selectedRiderId);
+    if (live?.latest_location) {
+      mapRef.current.panTo({ lat: live.latest_location.latitude, lng: live.latest_location.longitude });
+      return;
+    }
+    const offline = allRiders.find(r => r.id === selectedRiderId);
+    if (offline?.coverage_lat && offline?.coverage_lng) {
+      mapRef.current.panTo({ lat: offline.coverage_lat, lng: offline.coverage_lng });
+    }
+  }, [selectedRiderId, riders, allRiders]);
 
-    const updateMarkers = async () => {
-      const L   = (await import('leaflet')).default;
-      const map = mapRef.current;
+  if (!isLoaded) {
+    return (
+      <div style={{ width: '100%', height: '100%', background: '#f0f4ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontSize: 12, color: '#9ca3af' }}>Loading map…</p>
+      </div>
+    );
+  }
 
-      riders.forEach((lr, i) => {
-        if (!lr.latest_location) return;
-        const { latitude, longitude } = lr.latest_location;
-        const color      = getRiderColor(i);
-        const isSelected = lr.rider.id === selectedRiderId;
-
-        const icon = L.divIcon({
-          className: '',
-          html: `<div style="
-            width:${isSelected ? 44 : 36}px;
-            height:${isSelected ? 44 : 36}px;
-            border-radius:50%;
-            background:${color}${isSelected ? '40' : '20'};
-            border:${isSelected ? '3px' : '2px'} solid ${color};
-            display:flex;align-items:center;justify-content:center;
-            font-size:${isSelected ? '18px' : '14px'};
-            box-shadow:${isSelected ? `0 0 0 6px ${color}20` : 'none'};
-            transition:all 0.3s;
-          ">${vehicleIcon(lr.rider.vehicle_type)}</div>`,
-          iconSize:   [isSelected ? 44 : 36, isSelected ? 44 : 36],
-          iconAnchor: [isSelected ? 22 : 18, isSelected ? 22 : 18],
-        });
-
-        const existing = markersRef.current.get(lr.route_id);
-        if (existing) {
-          existing.setLatLng([latitude, longitude]);
-          existing.setIcon(icon);
-        } else {
-          const marker = L.marker([latitude, longitude], { icon })
-            .bindPopup(`
-              <div style="font-size:12px;min-width:160px;">
-                <strong>${lr.rider.name}</strong><br/>
-                ${lr.completed_stops}/${lr.total_stops} stops complete<br/>
-                ${lr.current_stop ? `Now: ${lr.current_stop.facility?.name ?? '—'}` : 'Heading to depot'}
-              </div>
-            `)
-            .addTo(map);
-          markersRef.current.set(lr.route_id, marker);
-        }
-      });
-
-      if (selectedRiderId) {
-        const sel = riders.find((r) => r.rider.id === selectedRiderId);
-        if (sel?.latest_location) {
-          map.panTo([sel.latest_location.latitude, sel.latest_location.longitude]);
-        }
-      }
-    };
-
-    updateMarkers();
-  }, [riders, selectedRiderId]);
+  const liveRiderIds = new Set(riders.map(lr => lr.rider.id));
 
   return (
-    <div
-      id={containerId}
-      style={{ width: '100%', height: '100%', background: isDark() ? '#111827' : '#e8edf2' }}
-    />
+    <GoogleMap
+      onLoad={onLoad}
+      mapContainerStyle={{ width: '100%', height: '100%' }}
+      center={DEFAULT_CENTER}
+      zoom={12}
+      options={{
+        styles: dark ? DARK_STYLES : LIGHT_STYLES,
+        zoomControl: true,
+        streetViewControl: false,
+        mapTypeControl: false,
+        fullscreenControl: false,
+      }}
+    >
+      {/* ── Active route riders (live GPS) ─────────────────────────────────── */}
+      {riders.map((lr, i) => {
+        if (!lr.latest_location) return null;
+        const { latitude, longitude } = lr.latest_location;
+        const color = getRiderColor(i);
+        const isSelected = lr.rider.id === selectedRiderId;
+        const popupKey = `live-${lr.route_id}`;
+
+        return (
+          <Marker
+            key={popupKey}
+            position={{ lat: latitude, lng: longitude }}
+            onClick={() => setOpenPopupId(openPopupId === popupKey ? null : popupKey)}
+            icon={{
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: isSelected ? 14 : 11,
+              fillColor: color,
+              fillOpacity: isSelected ? 0.3 : 0.15,
+              strokeColor: color,
+              strokeWeight: isSelected ? 3 : 2,
+            }}
+            label={{
+              text: vehicleIcon(lr.rider.vehicle_type),
+              fontSize: isSelected ? '14px' : '11px',
+            }}
+          >
+            {openPopupId === popupKey && (
+              <InfoWindow
+                position={{ lat: latitude, lng: longitude }}
+                onCloseClick={() => setOpenPopupId(null)}
+              >
+                <div style={{ fontSize: 12, minWidth: 160 }}>
+                  <strong>{lr.rider.name}</strong><br />
+                  {lr.completed_stops}/{lr.total_stops} stops complete<br />
+                  {lr.current_stop
+                    ? `Now: ${lr.current_stop.facility?.name ?? '—'}`
+                    : 'Heading to depot'}
+                </div>
+              </InfoWindow>
+            )}
+          </Marker>
+        );
+      })}
+
+      {/* ── Offline riders (coverage location) ────────────────────────────── */}
+      {allRiders
+        .filter(r => !liveRiderIds.has(r.id) && r.coverage_lat && r.coverage_lng)
+        .map(r => {
+          const isSelected = r.id === selectedRiderId;
+          const color = AVAIL_COLORS[r.availability_status] ?? '#9ca3af';
+          const popupKey = `offline-${r.id}`;
+
+          return (
+            <Marker
+              key={popupKey}
+              position={{ lat: r.coverage_lat!, lng: r.coverage_lng! }}
+              onClick={() => setOpenPopupId(openPopupId === popupKey ? null : popupKey)}
+              icon={{
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: isSelected ? 12 : 9,
+                fillColor: color,
+                fillOpacity: isSelected ? 0.9 : 0.6,
+                strokeColor: '#fff',
+                strokeWeight: isSelected ? 2.5 : 1.5,
+              }}
+              label={{
+                text: vehicleIcon(r.vehicle_type),
+                fontSize: isSelected ? '13px' : '10px',
+              }}
+            >
+              {openPopupId === popupKey && (
+                <InfoWindow
+                  position={{ lat: r.coverage_lat!, lng: r.coverage_lng! }}
+                  onCloseClick={() => setOpenPopupId(null)}
+                >
+                  <div style={{ fontSize: 12, minWidth: 140 }}>
+                    <strong>{r.name}</strong><br />
+                    {r.vehicle_type}<br />
+                    {r.coverage_city && <>{r.coverage_city}<br /></>}
+                    Status: {r.availability_status === 'free' ? 'Available' : r.availability_status}
+                  </div>
+                </InfoWindow>
+              )}
+            </Marker>
+          );
+        })}
+    </GoogleMap>
   );
 }
