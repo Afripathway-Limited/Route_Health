@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, UserPlus, CheckCircle2, XCircle, MoreHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
-import { MOCK_PLATFORM_USERS, MOCK_ORGANIZATIONS } from '@/lib/mock-data';
+import { get, patch, getErrorMessage } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 const ROLE_COLORS: Record<string, string> = {
@@ -13,39 +13,72 @@ const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin', org_admin: 'Org Admin', dispatcher: 'Dispatcher', lab_manager: 'Lab Manager', rider: 'Rider',
 };
 
+interface PlatformUser {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  organization: { id: number; name: string } | null;
+  last_login_at: string | null;
+  is_active: boolean;
+}
+
+interface OrgOption { id: number; name: string; }
+
 export default function PlatformUsersPage() {
-  const [users, setUsers] = useState(MOCK_PLATFORM_USERS.map(u => ({ ...u })));
-  const [search, setSearch] = useState('');
+  const [users, setUsers]       = useState<PlatformUser[]>([]);
+  const [orgs, setOrgs]         = useState<OrgOption[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [search, setSearch]     = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [orgFilter, setOrgFilter] = useState('all');
+  const [orgFilter, setOrgFilter]   = useState('all');
   const [showInvite, setShowInvite] = useState(false);
-  const [openMenu, setOpenMenu] = useState<number | null>(null);
-  const [invite, setInvite] = useState({ name: '', email: '', role: 'org_admin', org_id: '1' });
+  const [openMenu, setOpenMenu]     = useState<number | null>(null);
+  const [invite, setInvite]         = useState({ name: '', email: '', role: 'org_admin', org_id: '1' });
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const data = await get<PlatformUser[]>('/super-admin/users');
+      setUsers(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+    get<OrgOption[]>('/super-admin/organizations').then(data => {
+      setOrgs(Array.isArray(data) ? data : []);
+    }).catch(() => {});
+  }, [loadUsers]);
 
   const filtered = users.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter === 'all' || u.role === roleFilter;
-    const matchOrg = orgFilter === 'all' || String(u.org_id) === orgFilter;
+    const matchOrg = orgFilter === 'all' || String(u.organization?.id) === orgFilter;
     return matchSearch && matchRole && matchOrg;
   });
 
-  const toggleActive = (id: number) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, is_active: !u.is_active } : u));
+  const toggleActive = async (id: number) => {
     const user = users.find(u => u.id === id);
-    toast.success(user?.is_active ? 'User deactivated' : 'User activated');
+    if (!user) return;
+    const action = user.is_active ? 'deactivate' : 'activate';
+    try {
+      await patch(`/super-admin/users/${id}/${action}`);
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, is_active: !u.is_active } : u));
+      toast.success(user.is_active ? 'User deactivated' : 'User activated');
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    }
     setOpenMenu(null);
   };
 
   const handleInvite = () => {
-    const org = MOCK_ORGANIZATIONS.find(o => o.id === Number(invite.org_id));
-    setUsers(prev => [...prev, {
-      id: Date.now(), name: invite.name, email: invite.email,
-      role: invite.role, org_id: Number(invite.org_id),
-      org_name: org?.name ?? '—', is_active: true, last_login: '—',
-    }]);
-    toast.success(`Invitation sent to ${invite.email}`);
+    toast('Platform-level user invites are managed per-organization.');
     setShowInvite(false);
-    setInvite({ name: '', email: '', role: 'org_admin', org_id: '1' });
   };
 
   const inputStyle: React.CSSProperties = {
@@ -87,7 +120,7 @@ export default function PlatformUsersPage() {
           className="px-3 py-2.5 rounded-[10px] text-[13px]"
           style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', outline: 'none', minWidth: 180 }}>
           <option value="all">All Organisations</option>
-          {MOCK_ORGANIZATIONS.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
       </div>
 
@@ -119,7 +152,7 @@ export default function PlatformUsersPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3.5"><Badge color={ROLE_COLORS[u.role] as any}>{ROLE_LABELS[u.role]}</Badge></td>
-                  <td className="px-5 py-3.5"><span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>{u.org_name}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>{u.organization?.name ?? '—'}</span></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1.5">
                       {u.is_active
@@ -129,7 +162,7 @@ export default function PlatformUsersPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
-                      {u.last_login === '—' ? '—' : new Date(u.last_login as string).toLocaleDateString('en-KE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString('en-KE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
                     </span>
                   </td>
                   <td className="px-5 py-3.5">
@@ -157,7 +190,12 @@ export default function PlatformUsersPage() {
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 && (
+          {loading && (
+            <div className="py-16 text-center">
+              <p className="text-[14px]" style={{ color: 'var(--text-muted)' }}>Loading…</p>
+            </div>
+          )}
+          {!loading && filtered.length === 0 && (
             <div className="py-16 text-center">
               <p className="text-[14px]" style={{ color: 'var(--text-muted)' }}>No users match your filters.</p>
             </div>
@@ -197,7 +235,7 @@ export default function PlatformUsersPage() {
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-tertiary)' }}>Organisation</label>
               <select value={invite.org_id} onChange={e => setInvite(p => ({ ...p, org_id: e.target.value }))} style={inputStyle}>
-                {MOCK_ORGANIZATIONS.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
               </select>
             </div>
             <div className="flex gap-3 pt-1">
