@@ -33,6 +33,7 @@ const DEMO_CREDS = [
   { label: 'Org Admin',     color: '#4F46E5', email: 'admin@pathcare.ke',        password: 'Demo@2024!'        },
   { label: 'Dispatcher',    color: '#10B981', email: 'dispatcher@pathcare.ke',   password: 'Demo@2024!'        },
   { label: 'Lab Manager',   color: '#06B6D4', email: 'lab@nairobi-general.ke',   password: 'Demo@2024!'        },
+  { label: 'Rider',         color: '#8B5CF6', email: '',                          password: ''                  },
 ];
 
 /* ─── Spinner ───────────────────────────────────────────────────────────── */
