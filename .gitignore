@@ -1,0 +1,42 @@
+# ── Environment ───────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Laravel ───────────────────────────────────────────────────────────────────
+/vendor/
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+/storage/*.key
+/storage/logs/
+/storage/framework/
+/public/storage
+/public/hot
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.*.local
+frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo
+
+# ── OS / IDE ──────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Logs & Build ──────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+/storage/logs/*.log
+
+# ── Claude AI (local dev tool) ────────────────────────────────────────────────
+.claude/
