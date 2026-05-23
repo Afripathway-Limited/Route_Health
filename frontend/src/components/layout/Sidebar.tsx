@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Building2, Settings, Users, MapPin, Truck,
   ClipboardList, Route, Activity, BarChart3, History,
   LogOut, Zap, ChevronLeft, ChevronRight,
-  Shield, DollarSign, FileText,
+  Shield, DollarSign, FileText, Package, HeadphonesIcon,
 } from 'lucide-react';
 
 interface NavItem    { label: string; href: string; icon: React.ElementType; badge?: number }
@@ -23,10 +23,17 @@ const navConfig: Record<string, NavSection[]> = {
       ],
     },
     {
+      title: 'Fleet',
+      items: [
+        { label: 'Rider Fleet', href: '/super-admin/riders', icon: Truck },
+      ],
+    },
+    {
       title: 'Management',
       items: [
-        { label: 'Platform Users',      href: '/super-admin/users', icon: Users },
-        { label: 'Roles & Permissions', href: '/super-admin/roles', icon: Shield },
+        { label: 'Platform Users',      href: '/super-admin/users',    icon: Users },
+        { label: 'Roles & Permissions', href: '/super-admin/roles',    icon: Shield },
+        { label: 'Subscription Plans',  href: '/super-admin/packages', icon: Package },
       ],
     },
     {
@@ -38,8 +45,9 @@ const navConfig: Record<string, NavSection[]> = {
     {
       title: 'System',
       items: [
-        { label: 'Audit Log',          href: '/super-admin/audit-log', icon: FileText },
-        { label: 'Platform Settings',  href: '/super-admin/settings',  icon: Settings },
+        { label: 'Support Tickets',   href: '/super-admin/issues',    icon: HeadphonesIcon },
+        { label: 'Audit Log',         href: '/super-admin/audit-log', icon: FileText },
+        { label: 'Platform Settings', href: '/super-admin/settings',  icon: Settings },
       ],
     },
   ],

@@ -491,6 +491,10 @@ export const MOCK_ORGANIZATIONS = [
     subscription_plan: 'professional',
     status: 'active',
     created_at: '2025-11-12',
+    service_city: 'Nairobi, Kenya',
+    service_lat: -1.2921,
+    service_lng: 36.8219,
+    service_radius_km: 35,
   },
   {
     id: 2,
@@ -503,6 +507,10 @@ export const MOCK_ORGANIZATIONS = [
     subscription_plan: 'enterprise',
     status: 'active',
     created_at: '2025-09-03',
+    service_city: 'Dar es Salaam, Tanzania',
+    service_lat: -6.8160,
+    service_lng: 39.2803,
+    service_radius_km: 30,
   },
   {
     id: 3,
@@ -515,6 +523,10 @@ export const MOCK_ORGANIZATIONS = [
     subscription_plan: 'starter',
     status: 'active',
     created_at: '2026-01-20',
+    service_city: 'Kampala, Uganda',
+    service_lat: 0.3163,
+    service_lng: 32.5822,
+    service_radius_km: 25,
   },
   {
     id: 4,
@@ -527,6 +539,10 @@ export const MOCK_ORGANIZATIONS = [
     subscription_plan: 'starter',
     status: 'suspended',
     created_at: '2026-03-07',
+    service_city: 'Kigali, Rwanda',
+    service_lat: -1.9441,
+    service_lng: 30.0619,
+    service_radius_km: 20,
   },
 ];
 
@@ -596,6 +612,42 @@ export const MOCK_REVENUE = {
   ],
 };
 
+// ── Super Admin Rider Fleet (platform-level, with coverage area) ──────────────
+export const MOCK_SA_RIDERS = [
+  { id: 1,  name: 'David Kamau',    phone: '+254 722 113 456', vehicle_type: 'motorbike', coverage_city: 'Westlands, Nairobi',       coverage_lat: -1.2641, coverage_lng: 36.8042, coverage_radius_km: 20, availability_status: 'on_route',    is_active: true,  tasks_this_month: 87, on_time_rate: 94, org_name: 'PathCare Diagnostics Kenya' },
+  { id: 2,  name: 'Sarah Wanjiku',  phone: '+254 733 228 901', vehicle_type: 'bicycle',   coverage_city: 'Parklands, Nairobi',       coverage_lat: -1.2634, coverage_lng: 36.8172, coverage_radius_km: 10, availability_status: 'free',        is_active: true,  tasks_this_month: 62, on_time_rate: 88, org_name: 'PathCare Diagnostics Kenya' },
+  { id: 3,  name: 'James Otieno',   phone: '+254 700 556 712', vehicle_type: 'motorbike', coverage_city: 'Upper Hill, Nairobi',      coverage_lat: -1.2920, coverage_lng: 36.8170, coverage_radius_km: 25, availability_status: 'on_route',    is_active: true,  tasks_this_month: 74, on_time_rate: 78, org_name: 'PathCare Diagnostics Kenya' },
+  { id: 4,  name: 'Grace Achieng',  phone: '+254 711 334 887', vehicle_type: 'car',       coverage_city: 'Karen, Nairobi',           coverage_lat: -1.3289, coverage_lng: 36.7116, coverage_radius_km: 30, availability_status: 'busy',        is_active: true,  tasks_this_month: 51, on_time_rate: 96, org_name: 'PathCare Diagnostics Kenya' },
+  { id: 5,  name: 'Peter Njoroge',  phone: '+254 726 991 003', vehicle_type: 'motorbike', coverage_city: 'Eastleigh, Nairobi',       coverage_lat: -1.2715, coverage_lng: 36.8508, coverage_radius_km: 15, availability_status: 'unavailable', is_active: false, tasks_this_month: 38, on_time_rate: 72, org_name: null },
+  { id: 6,  name: 'Ali Hassan',     phone: '+255 754 221 009', vehicle_type: 'motorbike', coverage_city: 'Dar es Salaam CBD',        coverage_lat: -6.8160, coverage_lng: 39.2803, coverage_radius_km: 25, availability_status: 'on_route',    is_active: true,  tasks_this_month: 91, on_time_rate: 91, org_name: 'LifeLab Tanzania' },
+  { id: 7,  name: 'Fatuma Salim',   phone: '+255 712 884 330', vehicle_type: 'bicycle',   coverage_city: 'Kinondoni, Dar es Salaam', coverage_lat: -6.7924, coverage_lng: 39.2083, coverage_radius_km: 12, availability_status: 'free',        is_active: true,  tasks_this_month: 55, on_time_rate: 85, org_name: 'LifeLab Tanzania' },
+  { id: 8,  name: 'Hassan Mwamba',  phone: '+255 769 553 112', vehicle_type: 'motorbike', coverage_city: 'Temeke, Dar es Salaam',    coverage_lat: -6.8489, coverage_lng: 39.2765, coverage_radius_km: 18, availability_status: 'on_route',    is_active: true,  tasks_this_month: 77, on_time_rate: 82, org_name: 'LifeLab Tanzania' },
+  { id: 9,  name: 'Moses Byaruhanga',phone: '+256 772 441 882',vehicle_type: 'motorbike', coverage_city: 'Kampala Central',          coverage_lat: 0.3163,  coverage_lng: 32.5822, coverage_radius_km: 20, availability_status: 'free',        is_active: true,  tasks_this_month: 43, on_time_rate: 89, org_name: 'MedExpress Uganda' },
+  { id: 10, name: 'Sylvia Nakato',  phone: '+256 701 337 554', vehicle_type: 'car',       coverage_city: 'Nakasero, Kampala',        coverage_lat: 0.3317,  coverage_lng: 32.5817, coverage_radius_km: 15, availability_status: 'busy',        is_active: true,  tasks_this_month: 29, on_time_rate: 94, org_name: 'MedExpress Uganda' },
+];
+
+// ── Subscription Plans ────────────────────────────────────────────────────────
+export const MOCK_SUBSCRIPTION_PLANS = [
+  {
+    id: 1, name: 'starter', display_name: 'Starter', price_usd_monthly: 50, price_usd_annual: 500,
+    max_riders: 5, max_facilities: 15, max_tasks_per_month: 300, max_dispatchers: 1,
+    is_active: true, is_public: true, sort_order: 1,
+    features: ['Up to 5 riders', 'Up to 15 facilities', '300 tasks/month', '1 dispatcher account', 'Basic analytics', 'WhatsApp notifications', 'Chain of custody photos'],
+  },
+  {
+    id: 2, name: 'professional', display_name: 'Professional', price_usd_monthly: 120, price_usd_annual: 1200,
+    max_riders: 20, max_facilities: 50, max_tasks_per_month: 1500, max_dispatchers: 3,
+    is_active: true, is_public: true, sort_order: 2,
+    features: ['Up to 20 riders', 'Up to 50 facilities', '1,500 tasks/month', '3 dispatcher accounts', 'Advanced analytics & PDF export', 'WhatsApp notifications', 'Chain of custody photos', 'AI-powered route optimization', 'SLA compliance reports'],
+  },
+  {
+    id: 3, name: 'enterprise', display_name: 'Enterprise', price_usd_monthly: 250, price_usd_annual: 2500,
+    max_riders: -1, max_facilities: -1, max_tasks_per_month: -1, max_dispatchers: -1,
+    is_active: true, is_public: true, sort_order: 3,
+    features: ['Unlimited riders', 'Unlimited facilities', 'Unlimited tasks', 'Unlimited dispatchers', 'Full AI analytics & insights', 'WhatsApp notifications', 'Chain of custody photos', 'Priority support & SLA', 'Custom branding', 'API access'],
+  },
+];
+
 export const MOCK_AUDIT_LOG = [
   { id: 1,  actor: 'Super Admin',    actor_role: 'super_admin', action: 'org.suspended',        target: 'SaniLab Rwanda',              org: null,                      ts: '2026-05-04T14:22:00Z', severity: 'warning' },
   { id: 2,  actor: 'James Kariuki',  actor_role: 'org_admin',   action: 'rider.created',         target: 'Grace Achieng',               org: 'PathCare Diagnostics Kenya', ts: '2026-05-04T09:10:00Z', severity: 'info' },
@@ -609,4 +661,31 @@ export const MOCK_AUDIT_LOG = [
   { id: 10, actor: 'Ops Dar',        actor_role: 'dispatcher',  action: 'route.dispatched',      target: 'Route #202 — 7 stops',        org: 'LifeLab Tanzania',           ts: '2026-05-05T07:00:00Z', severity: 'info' },
   { id: 11, actor: 'Marie Uwase',    actor_role: 'org_admin',   action: 'user.deactivated',      target: 'lab@sanilab.rw',              org: 'SaniLab Rwanda',             ts: '2026-03-10T12:00:00Z', severity: 'warning' },
   { id: 12, actor: 'James Kariuki',  actor_role: 'org_admin',   action: 'settings.branding',     target: 'Logo and color updated',      org: 'PathCare Diagnostics Kenya', ts: '2026-04-30T15:40:00Z', severity: 'info' },
+];
+
+// ── Countries list (for dropdowns) ────────────────────────────────────────────
+export const MOCK_COUNTRIES = [
+  // Africa
+  'Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cabo Verde',
+  'Cameroon', 'Central African Republic', 'Chad', 'Comoros', 'Congo (Brazzaville)',
+  'Congo (DRC)', "Côte d'Ivoire", 'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea',
+  'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Kenya',
+  'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius',
+  'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Rwanda',
+  'São Tomé and Príncipe', 'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia',
+  'South Africa', 'South Sudan', 'Sudan', 'Tanzania', 'Togo', 'Tunisia', 'Uganda',
+  'Zambia', 'Zimbabwe',
+  // Middle East
+  'Bahrain', 'Iraq', 'Jordan', 'Kuwait', 'Lebanon', 'Oman', 'Palestine', 'Qatar',
+  'Saudi Arabia', 'Syria', 'United Arab Emirates', 'Yemen',
+  // Asia
+  'Bangladesh', 'China', 'India', 'Indonesia', 'Malaysia', 'Pakistan', 'Philippines',
+  'Singapore', 'Sri Lanka', 'Thailand', 'Vietnam',
+  // Europe
+  'France', 'Germany', 'Italy', 'Netherlands', 'Portugal', 'Spain', 'Sweden',
+  'Switzerland', 'United Kingdom',
+  // Americas
+  'Brazil', 'Canada', 'Mexico', 'United States',
+  // Oceania
+  'Australia', 'New Zealand',
 ];
