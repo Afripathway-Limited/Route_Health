@@ -1,14 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, MapPin, Pencil, History, CheckCircle2, Clock, AlertCircle, Phone } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
 import { Input } from '@/components/ui/Input';
 import { FAB } from '@/components/ui/FAB';
-import { MOCK_FACILITIES } from '@/lib/mock-data';
+import { get, post, put, getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
+
+const LocationPickerMap = dynamic(() => import('@/components/maps/LocationPickerMap'), { ssr: false });
 
 type FacilityType = 'lab' | 'clinic' | 'hospital' | 'pharmacy';
 
@@ -20,33 +24,57 @@ const TYPE_COLORS: Record<FacilityType, string> = {
 };
 
 const HISTORY = [
-  { date: 'Today, 08:14', rider: 'David Kamau', status: 'completed', delay: 0 },
-  { date: 'Yesterday, 08:32', rider: 'Sarah Wanjiku', status: 'completed', delay: 5 },
-  { date: 'Mon 28 Apr, 07:58', rider: 'David Kamau', status: 'completed', delay: -2 },
-  { date: 'Fri 25 Apr, 09:04', rider: 'James Otieno', status: 'failed', delay: null },
-  { date: 'Thu 24 Apr, 08:21', rider: 'David Kamau', status: 'completed', delay: 8 },
+  { date: 'Today, 08:14',        rider: 'David Kamau',   status: 'completed', delay: 0 },
+  { date: 'Yesterday, 08:32',    rider: 'Sarah Wanjiku', status: 'completed', delay: 5 },
+  { date: 'Mon 28 Apr, 07:58',   rider: 'David Kamau',   status: 'completed', delay: -2 },
+  { date: 'Fri 25 Apr, 09:04',   rider: 'James Otieno',  status: 'failed',    delay: null },
+  { date: 'Thu 24 Apr, 08:21',   rider: 'David Kamau',   status: 'completed', delay: 8 },
 ];
 
 interface FacilityForm {
   name: string;
   address_line_1: string;
   city: string;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
   facility_type: FacilityType;
   contact_name: string;
   contact_phone: string;
 }
 
 export default function FacilitiesPage() {
-  const [search, setSearch] = useState('');
+  const { user } = useAuth();
+  const orgCountry = user?.organization?.country ?? '';
+
+  const blankForm = useCallback((): FacilityForm => ({
+    name: '', address_line_1: '', city: '', country: orgCountry,
+    latitude: null, longitude: null,
+    facility_type: 'clinic', contact_name: '', contact_phone: '',
+  }), [orgCountry]);
+
+  const [search, setSearch]         = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [historyFacility, setHistoryFacility] = useState<any | null>(null);
-  const [editing, setEditing] = useState<any | null>(null);
-  const [facilities, setFacilities] = useState<any[]>([...MOCK_FACILITIES]);
-  const [form, setForm] = useState<FacilityForm>({
-    name: '', address_line_1: '', city: 'Nairobi', facility_type: 'clinic',
-    contact_name: '', contact_phone: '',
-  });
+  const [editing, setEditing]       = useState<any | null>(null);
+  const [facilities, setFacilities] = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [form, setForm]             = useState<FacilityForm>(blankForm());
+
+  const loadFacilities = useCallback(async () => {
+    try {
+      const data = await get<any[]>('/facilities');
+      setFacilities(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('Failed to load facilities');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadFacilities(); }, [loadFacilities]);
 
   const filtered = facilities.filter(f => {
     const matchSearch = !search ||
@@ -58,42 +86,66 @@ export default function FacilitiesPage() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: '', address_line_1: '', city: 'Nairobi', facility_type: 'clinic', contact_name: '', contact_phone: '' });
+    setForm(blankForm());
     setDrawerOpen(true);
   };
 
-  const openEdit = (f: typeof MOCK_FACILITIES[0]) => {
+  const openEdit = (f: any) => {
     setEditing(f);
     setForm({
-      name: f.name, address_line_1: f.address_line_1, city: f.city,
+      name: f.name,
+      address_line_1: f.address_line_1 ?? '',
+      city: f.city ?? '',
+      country: f.country ?? orgCountry,
+      latitude: f.latitude  ? Number(f.latitude)  : null,
+      longitude: f.longitude ? Number(f.longitude) : null,
       facility_type: f.facility_type as FacilityType,
-      contact_name: f.contact_name, contact_phone: f.contact_phone,
+      contact_name: f.contact_name ?? '',
+      contact_phone: f.contact_phone ?? '',
     });
     setDrawerOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name || !form.address_line_1 || !form.contact_name || !form.contact_phone) {
       toast.error('Please fill in all required fields');
       return;
     }
-    if (editing) {
-      setFacilities(prev => prev.map(f => f.id === editing.id ? { ...f, ...form } : f));
-      toast.success('Facility updated');
-    } else {
-      const newFacility = {
-        ...form, id: Date.now(), country: 'Kenya',
-        address_line_2: null, latitude: -1.286, longitude: 36.817,
-        special_notes: null, is_active: true, pickups_this_month: 0,
-      };
-      setFacilities(prev => [newFacility as any, ...prev]);
-      toast.success('Facility created');
+    if (!form.latitude || !form.longitude) {
+      toast.error('Please pick the facility location on the map');
+      return;
     }
-    setDrawerOpen(false);
+    if (!form.country) {
+      toast.error('Country is required');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editing) {
+        await put(`/facilities/${editing.id}`, form);
+        toast.success('Facility updated');
+      } else {
+        await post('/facilities', form);
+        toast.success('Facility created');
+      }
+      await loadFacilities();
+      setDrawerOpen(false);
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const toggleStatus = (id: number) => {
-    setFacilities(prev => prev.map(f => f.id === id ? { ...f, is_active: !f.is_active } : f));
+  const toggleStatus = async (id: number) => {
+    const facility = facilities.find(f => f.id === id);
+    if (!facility) return;
+    try {
+      await put(`/facilities/${id}`, { is_active: !facility.is_active });
+      setFacilities(prev => prev.map(f => f.id === id ? { ...f, is_active: !f.is_active } : f));
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -102,6 +154,8 @@ export default function FacilitiesPage() {
     fontSize: 13, color: 'var(--text-primary)', outline: 'none',
     padding: '0 12px', boxSizing: 'border-box',
   };
+
+  const labelStyle: React.CSSProperties = { color: 'var(--text-secondary)' };
 
   return (
     <div className="p-4 lg:p-8 animate-fade-up">
@@ -132,12 +186,7 @@ export default function FacilitiesPage() {
             style={{ ...inputStyle, paddingLeft: 36 }}
           />
         </div>
-        <select
-          value={typeFilter}
-          onChange={e => setTypeFilter(e.target.value)}
-          className="rh-select"
-          style={{ width: 160 }}
-        >
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="rh-select" style={{ width: 160 }}>
           <option value="all">All types</option>
           <option value="lab">Lab</option>
           <option value="clinic">Clinic</option>
@@ -161,12 +210,9 @@ export default function FacilitiesPage() {
           </thead>
           <tbody>
             {filtered.map(f => (
-              <tr
-                key={f.id}
-                style={{ borderBottom: '1px solid var(--border-subtle)' }}
+              <tr key={f.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-              >
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
                 <td className="px-4 py-3.5">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0"
@@ -178,7 +224,7 @@ export default function FacilitiesPage() {
                 </td>
                 <td className="px-4 py-3.5">
                   <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>{f.address_line_1}</p>
-                  <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{f.city}</p>
+                  <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{f.city}, {f.country}</p>
                 </td>
                 <td className="px-4 py-3.5">
                   <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>{f.contact_name}</p>
@@ -193,50 +239,47 @@ export default function FacilitiesPage() {
                 </td>
                 <td className="px-4 py-3.5">
                   <span className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {(f as any).pickups_this_month ?? 24}
+                    {f.pickups_this_month ?? 0}
                   </span>
                 </td>
                 <td className="px-4 py-3.5">
-                  <button
-                    onClick={() => toggleStatus(f.id)}
+                  <button onClick={() => toggleStatus(f.id)}
                     className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1 rounded-full transition-all"
                     style={{
                       background: f.is_active ? 'var(--success-subtle)' : 'var(--bg-subtle)',
                       color: f.is_active ? 'var(--success)' : 'var(--text-tertiary)',
                       border: `1px solid ${f.is_active ? 'var(--success-border)' : 'var(--border-subtle)'}`,
-                    }}
-                  >
+                    }}>
                     {f.is_active ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
                     {f.is_active ? 'Active' : 'Inactive'}
                   </button>
                 </td>
                 <td className="px-4 py-3.5">
                   <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => openEdit(f)}
+                    <button onClick={() => openEdit(f)}
                       className="w-7 h-7 rounded-[7px] flex items-center justify-center transition-all"
                       style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
                       onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'var(--bg-hover)'; el.style.color = 'var(--text-primary)'; }}
                       onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'none'; el.style.color = 'var(--text-tertiary)'; }}
-                      title="Edit"
-                    >
+                      title="Edit">
                       <Pencil size={13} />
                     </button>
-                    <button
-                      onClick={() => setHistoryFacility(f)}
+                    <button onClick={() => setHistoryFacility(f)}
                       className="w-7 h-7 rounded-[7px] flex items-center justify-center transition-all"
                       style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
                       onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'var(--bg-hover)'; el.style.color = 'var(--text-primary)'; }}
                       onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'none'; el.style.color = 'var(--text-tertiary)'; }}
-                      title="Pickup history"
-                    >
+                      title="Pickup history">
                       <History size={13} />
                     </button>
                   </div>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {loading && (
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-[13px]" style={{ color: 'var(--text-tertiary)' }}>Loading…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center">
                   <MapPin size={32} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
@@ -261,24 +304,18 @@ export default function FacilitiesPage() {
                 </div>
                 <div>
                   <p className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>{f.name}</p>
-                  <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>{f.city}</p>
+                  <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>{f.city}, {f.country}</p>
                 </div>
               </div>
-              <Badge color={TYPE_COLORS[f.facility_type as FacilityType] as any}>
-                {f.facility_type}
-              </Badge>
+              <Badge color={TYPE_COLORS[f.facility_type as FacilityType] as any}>{f.facility_type}</Badge>
             </div>
             <div className="mt-3 flex items-center justify-between">
               <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>{f.contact_name} · {f.contact_phone}</span>
               <div className="flex gap-2">
                 <button onClick={() => openEdit(f)} className="text-[12px] font-medium px-2.5 py-1 rounded-[7px]"
-                  style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>
-                  Edit
-                </button>
+                  style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>Edit</button>
                 <button onClick={() => setHistoryFacility(f)} className="text-[12px] font-medium px-2.5 py-1 rounded-[7px]"
-                  style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>
-                  History
-                </button>
+                  style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>History</button>
               </div>
             </div>
           </div>
@@ -288,34 +325,62 @@ export default function FacilitiesPage() {
       {/* FAB mobile */}
       <FAB onClick={openAdd} label="Add Facility"><Plus size={22} /></FAB>
 
-      {/* Add / Edit Drawer */}
+      {/* ─── Add / Edit Drawer ──────────────────────────────────────────────── */}
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={editing ? `Edit — ${editing.name}` : 'Add Facility'}
       >
         <div className="space-y-4">
-          {[
-            { label: 'Facility name *', key: 'name', placeholder: 'e.g. Westlands Medical Centre' },
-            { label: 'Address *', key: 'address_line_1', placeholder: 'Street address' },
-            { label: 'City', key: 'city', placeholder: 'Nairobi' },
-            { label: 'Contact name *', key: 'contact_name', placeholder: 'Full name' },
-            { label: 'Contact phone *', key: 'contact_phone', placeholder: '+254 700 000000' },
-          ].map(({ label, key, placeholder }) => (
-            <div key={key}>
-              <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>{label}</label>
+          {/* Facility name */}
+          <div>
+            <label className="block text-[12px] font-medium mb-1.5" style={labelStyle}>Facility name *</label>
+            <Input
+              placeholder="e.g. Westlands Medical Centre"
+              value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+            />
+          </div>
+
+          {/* Address + inline map picker (sets lat/lng) */}
+          <LocationPickerMap
+            label="Address *"
+            lat={form.latitude}
+            lng={form.longitude}
+            name={form.address_line_1}
+            onChangeName={v => setForm(p => ({ ...p, address_line_1: v }))}
+            onChangeCoords={(lat, lng) => setForm(p => ({ ...p, latitude: lat, longitude: lng }))}
+            placeholder="Street address — tap 📍 to pin on map"
+            required
+          />
+
+          {/* City + Country */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[12px] font-medium mb-1.5" style={labelStyle}>City *</label>
               <Input
-                placeholder={placeholder}
-                value={(form as any)[key]}
-                onChange={e => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+                placeholder="Nairobi"
+                value={form.city}
+                onChange={e => setForm(p => ({ ...p, city: e.target.value }))}
               />
             </div>
-          ))}
+            <div>
+              <label className="block text-[12px] font-medium mb-1.5" style={labelStyle}>Country *</label>
+              <input
+                value={form.country}
+                onChange={e => setForm(p => ({ ...p, country: e.target.value }))}
+                placeholder="Kenya"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          {/* Type */}
           <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Type</label>
+            <label className="block text-[12px] font-medium mb-1.5" style={labelStyle}>Type</label>
             <select
               value={form.facility_type}
-              onChange={e => setForm(prev => ({ ...prev, facility_type: e.target.value as FacilityType }))}
+              onChange={e => setForm(p => ({ ...p, facility_type: e.target.value as FacilityType }))}
               className="rh-select"
             >
               <option value="clinic">Clinic</option>
@@ -324,14 +389,36 @@ export default function FacilitiesPage() {
               <option value="pharmacy">Pharmacy</option>
             </select>
           </div>
+
+          {/* Contact */}
+          <div>
+            <label className="block text-[12px] font-medium mb-1.5" style={labelStyle}>Contact name *</label>
+            <Input
+              placeholder="Full name"
+              value={form.contact_name}
+              onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="block text-[12px] font-medium mb-1.5" style={labelStyle}>Contact phone *</label>
+            <Input
+              placeholder="+254 700 000000"
+              value={form.contact_phone}
+              onChange={e => setForm(p => ({ ...p, contact_phone: e.target.value }))}
+            />
+          </div>
+
+          {/* Actions */}
           <div className="pt-2 flex gap-3">
             <Button variant="secondary" onClick={() => setDrawerOpen(false)} className="flex-1">Cancel</Button>
-            <Button onClick={handleSave} className="flex-1">{editing ? 'Save Changes' : 'Add Facility'}</Button>
+            <Button onClick={handleSave} className="flex-1" disabled={saving}>
+              {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Facility'}
+            </Button>
           </div>
         </div>
       </Drawer>
 
-      {/* History Drawer */}
+      {/* ─── History Drawer ─────────────────────────────────────────────────── */}
       <Drawer
         open={!!historyFacility}
         onClose={() => setHistoryFacility(null)}
@@ -341,7 +428,7 @@ export default function FacilitiesPage() {
           {HISTORY.map((h, i) => (
             <div key={i} className="flex gap-3 p-3 rounded-[10px]" style={{ background: 'var(--bg-subtle)' }}>
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold"
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                 style={h.status === 'completed'
                   ? { background: 'var(--success-subtle)', color: 'var(--success)' }
                   : { background: 'var(--danger-subtle)', color: 'var(--danger)' }}
@@ -352,10 +439,8 @@ export default function FacilitiesPage() {
                 <div className="flex items-center justify-between">
                   <p className="text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{h.rider}</p>
                   {h.delay !== null && (
-                    <span
-                      className="text-[11px] font-medium"
-                      style={{ color: h.delay <= 0 ? 'var(--success)' : h.delay <= 10 ? 'var(--warning)' : 'var(--danger)' }}
-                    >
+                    <span className="text-[11px] font-medium"
+                      style={{ color: h.delay <= 0 ? 'var(--success)' : h.delay <= 10 ? 'var(--warning)' : 'var(--danger)' }}>
                       {h.delay <= 0 ? `${Math.abs(h.delay)}m early` : `+${h.delay}m`}
                     </span>
                   )}
