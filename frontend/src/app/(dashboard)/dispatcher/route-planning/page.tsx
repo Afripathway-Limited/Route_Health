@@ -429,8 +429,9 @@ export default function RoutePlanningPage() {
                     Map routes unavailable
                   </p>
                   <p className="text-[12px] mb-4" style={{ color: 'var(--text-tertiary)' }}>
-                    Google Directions API is not enabled. You can still dispatch the route directly
-                    with estimated arrival times, or retry after enabling the API.
+                    Could not calculate route alternatives. The stops may be unreachable, outside
+                    coverage, or a network error occurred. You can dispatch with estimated arrival
+                    times or retry.
                   </p>
                   <div className="flex flex-col gap-2">
                     <button
