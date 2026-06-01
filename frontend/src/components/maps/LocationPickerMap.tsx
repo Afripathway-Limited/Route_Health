@@ -7,12 +7,20 @@ import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { GOOGLE_MAPS_LIBRARIES } from '@/lib/google-maps';
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+const PLACES_BASE = 'https://places.googleapis.com/v1';
 const DEFAULT_CENTER = { lat: -1.2921, lng: 36.8219 };
 
 const MAP_STYLES: google.maps.MapTypeStyle[] = [
   { featureType: 'poi',     elementType: 'labels', stylers: [{ visibility: 'off' }] },
   { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
 ];
+
+interface PlaceSuggestion {
+  placeId: string;
+  mainText: string;
+  secondaryText: string;
+  fullText: string;
+}
 
 interface Props {
   label: string;
@@ -44,7 +52,7 @@ export default function LocationPickerMap({
   });
 
   const [open, setOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const [dropdownRect, setDropdownRect] = useState<DOMRect | null>(null);
@@ -54,10 +62,8 @@ export default function LocationPickerMap({
   onChangeCoordsRef.current = onChangeCoords;
   onChangeNameRef.current   = onChangeName;
 
-  const acServiceRef     = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
-  const debounceRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef         = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef    = useRef<HTMLInputElement>(null);
 
   const center = lat !== null && lng !== null ? { lat, lng } : DEFAULT_CENTER;
 
@@ -70,24 +76,7 @@ export default function LocationPickerMap({
     if (e.latLng) onChangeCoordsRef.current(e.latLng.lat(), e.latLng.lng());
   }, []);
 
-  // ── Places services (lazy init, safe checks) ──────────────────────────────
-  const getAcService = (): google.maps.places.AutocompleteService | null => {
-    if (!isLoaded || typeof google === 'undefined' || !google?.maps?.places) return null;
-    if (!acServiceRef.current) {
-      acServiceRef.current = new google.maps.places.AutocompleteService();
-    }
-    return acServiceRef.current;
-  };
-
-  const getPlacesService = (): google.maps.places.PlacesService | null => {
-    if (!isLoaded || typeof google === 'undefined' || !google?.maps?.places) return null;
-    if (!placesServiceRef.current) {
-      placesServiceRef.current = new google.maps.places.PlacesService(document.createElement('div'));
-    }
-    return placesServiceRef.current;
-  };
-
-  // ── Autocomplete ──────────────────────────────────────────────────────────
+  // ── Places API (New) REST — works without Maps JS API ────────────────────
   const handleInputChange = (value: string) => {
     onChangeNameRef.current(value);
     setHighlightIdx(-1);
@@ -100,51 +89,63 @@ export default function LocationPickerMap({
       return;
     }
 
-    debounceRef.current = setTimeout(() => {
-      const svc = getAcService();
-      if (!svc) return;
+    debounceRef.current = setTimeout(async () => {
+      if (!API_KEY) return;
+      try {
+        const res = await fetch(`${PLACES_BASE}/places:autocomplete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': API_KEY,
+          },
+          body: JSON.stringify({ input: value, languageCode: 'en' }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const preds: PlaceSuggestion[] = (data.suggestions ?? [])
+          .map((s: any) => ({
+            placeId:       s.placePrediction?.placeId ?? '',
+            mainText:      s.placePrediction?.structuredFormat?.mainText?.text
+                        ?? s.placePrediction?.text?.text ?? '',
+            secondaryText: s.placePrediction?.structuredFormat?.secondaryText?.text ?? '',
+            fullText:      s.placePrediction?.text?.text ?? '',
+          }))
+          .filter((s: PlaceSuggestion) => s.placeId);
 
-      svc.getPlacePredictions({ input: value }, (preds) => {
-        if (preds && preds.length > 0) {
+        if (preds.length > 0) {
           setSuggestions(preds.slice(0, 5));
-          // Capture input rect for portal positioning
-          if (inputRef.current) {
-            setDropdownRect(inputRef.current.getBoundingClientRect());
-          }
+          if (inputRef.current) setDropdownRect(inputRef.current.getBoundingClientRect());
           setShowSuggestions(true);
         } else {
           setSuggestions([]);
           setShowSuggestions(false);
         }
-      });
+      } catch { /* silently ignore network errors */ }
     }, 280);
   };
 
-  const selectSuggestion = useCallback((pred: google.maps.places.AutocompletePrediction) => {
-    const svc = getPlacesService();
+  const selectSuggestion = useCallback(async (pred: PlaceSuggestion) => {
     setSuggestions([]);
     setShowSuggestions(false);
     setHighlightIdx(-1);
+    onChangeNameRef.current(pred.fullText || pred.mainText);
 
-    if (!svc) {
-      // Fallback: just fill the name without coords
-      onChangeNameRef.current(pred.description);
-      return;
-    }
-
-    svc.getDetails(
-      { placeId: pred.place_id, fields: ['geometry', 'formatted_address', 'name'] },
-      (place) => {
-        if (place?.geometry?.location) {
-          onChangeNameRef.current(place.formatted_address ?? place.name ?? pred.description);
-          onChangeCoordsRef.current(place.geometry.location.lat(), place.geometry.location.lng());
-        } else {
-          onChangeNameRef.current(pred.description);
-        }
-      },
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded]);
+    if (!API_KEY || !pred.placeId) return;
+    try {
+      const res = await fetch(`${PLACES_BASE}/places/${pred.placeId}`, {
+        headers: {
+          'X-Goog-Api-Key': API_KEY,
+          'X-Goog-FieldMask': 'id,displayName,formattedAddress,location',
+        },
+      });
+      if (!res.ok) return;
+      const place = await res.json();
+      if (place.location?.latitude != null && place.location?.longitude != null) {
+        onChangeNameRef.current(place.formattedAddress ?? place.displayName?.text ?? pred.fullText);
+        onChangeCoordsRef.current(place.location.latitude, place.location.longitude);
+      }
+    } catch { /* silently ignore */ }
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -226,7 +227,7 @@ export default function LocationPickerMap({
           >
             {suggestions.map((pred, i) => (
               <button
-                key={pred.place_id}
+                key={pred.placeId}
                 type="button"
                 onMouseDown={e => { e.preventDefault(); selectSuggestion(pred); }}
                 style={{
@@ -243,11 +244,11 @@ export default function LocationPickerMap({
                 onMouseLeave={() => setHighlightIdx(-1)}
               >
                 <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {pred.structured_formatting?.main_text ?? pred.description}
+                  {pred.mainText}
                 </p>
-                {pred.structured_formatting?.secondary_text && (
+                {pred.secondaryText && (
                   <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {pred.structured_formatting.secondary_text}
+                    {pred.secondaryText}
                   </p>
                 )}
               </button>
