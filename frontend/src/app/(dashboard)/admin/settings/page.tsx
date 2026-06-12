@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { put, post, api } from '@/lib/api';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { put, post, get, api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -125,10 +125,10 @@ export default function OrgSettingsPage() {
 
   const brandingForm = useForm<BrandingForm>({
     defaultValues: {
-      name: 'PathCare Diagnostics Kenya',
+      name: '',
       primary_color: '#4F6EF7',
       logo_url: '',
-      country: 'Kenya',
+      country: '',
       timezone: 'Africa/Nairobi',
     },
   });
@@ -140,6 +140,30 @@ export default function OrgSettingsPage() {
       whatsapp_token: '',
     },
   });
+
+  // Load current settings from API and populate both forms
+  const { data: settingsData } = useQuery({
+    queryKey: ['org-settings'],
+    queryFn: () => get<any>('/settings'),
+  });
+
+  useEffect(() => {
+    if (!settingsData) return;
+    brandingForm.reset({
+      name: settingsData.name ?? '',
+      primary_color: settingsData.primary_color ?? '#4F6EF7',
+      logo_url: settingsData.logo_url ?? '',
+      country: settingsData.country ?? '',
+      timezone: settingsData.timezone ?? 'Africa/Nairobi',
+      subdomain: settingsData.subdomain ?? '',
+    });
+    whatsappForm.reset({
+      whatsapp_provider: settingsData.whatsapp_provider ?? 'twilio',
+      whatsapp_phone: settingsData.whatsapp_phone ?? '',
+      whatsapp_token: settingsData.whatsapp_token ?? '',
+    });
+    if (settingsData.primary_color) applyBrandColor(settingsData.primary_color);
+  }, [settingsData]);
 
   const [notifs, setNotifs] = useState<NotifSettings>({
     notify_failed_stop:    true,

@@ -211,10 +211,10 @@ export default function TasksPage() {
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-              {['', 'ID', 'Pickup', 'Drop-off', 'Window', 'Priority', 'Status', 'Rider', ''].map(h => (
+              {['sel', 'ID', 'Pickup', 'Drop-off', 'Window', 'Priority', 'Status', 'Rider', 'actions'].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider"
                   style={{ color: 'var(--text-tertiary)' }}>
-                  {h}
+                  {h === 'sel' || h === 'actions' ? '' : h}
                 </th>
               ))}
             </tr>

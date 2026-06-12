@@ -22,16 +22,17 @@ class OrgSettingsController extends Controller
             'id' => $org->id,
             'name' => $org->name,
             'country' => $org->country,
-            'logo_url' => $org->logo_url,
+            'logo_url' => $this->resolveStorageUrl($org->logo_url),
             'primary_color' => $org->primary_color,
             'subdomain' => $org->subdomain,
             'whatsapp_phone' => $org->whatsapp_phone,
             'whatsapp_provider' => $org->whatsapp_provider,
             'notification_preferences' => $org->notification_preferences ?? [],
-            'photo_retention_months' => $org->photo_retention_months,
+            'photo_retention_months' => $org->photo_retention_months ?? null,
             'subscription_plan' => $org->subscription_plan,
         ]);
     }
+
 
     public function update(Request $request): JsonResponse
     {
@@ -60,10 +61,11 @@ class OrgSettingsController extends Controller
 
         $org->update($request->only(['primary_color', 'subdomain', 'logo_url']));
 
+        $fresh = $org->fresh();
         return $this->success([
-            'logo_url'      => $org->fresh()->logo_url,
-            'primary_color' => $org->fresh()->primary_color,
-            'subdomain'     => $org->fresh()->subdomain,
+            'logo_url'      => $this->resolveStorageUrl($fresh->logo_url),
+            'primary_color' => $fresh->primary_color,
+            'subdomain'     => $fresh->subdomain,
         ], 'Branding updated');
     }
 
@@ -90,7 +92,7 @@ class OrgSettingsController extends Controller
 
         $org->update(['logo_url' => $logoUrl]);
 
-        return $this->success(['logo_url' => $logoUrl], 'Logo uploaded');
+        return $this->success(['logo_url' => $this->resolveStorageUrl($logoUrl)], 'Logo uploaded');
     }
 
     public function updateWhatsapp(Request $request): JsonResponse

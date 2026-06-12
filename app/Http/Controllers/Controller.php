@@ -25,6 +25,24 @@ abstract class Controller
         ], $status);
     }
 
+    /**
+     * Rewrite a stored logo URL to always use the current server's host and port.
+     * Fixes URLs stored when APP_URL was different (e.g. http://localhost vs http://localhost:8000).
+     */
+    protected function resolveStorageUrl(?string $storedUrl): ?string
+    {
+        if (!$storedUrl) return null;
+
+        $request = request();
+
+        if (!str_starts_with($storedUrl, 'http')) {
+            return $request->getSchemeAndHttpHost() . '/storage/' . ltrim($storedUrl, '/');
+        }
+
+        $path = parse_url($storedUrl, PHP_URL_PATH);
+        return $request->getSchemeAndHttpHost() . $path;
+    }
+
     protected function paginated(mixed $paginator, string $message = 'Success'): JsonResponse
     {
         return response()->json([

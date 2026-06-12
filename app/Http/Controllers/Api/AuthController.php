@@ -213,7 +213,7 @@ class AuthController extends Controller
             'organization' => $user->organization ? [
                 'id' => $user->organization->id,
                 'name' => $user->organization->name,
-                'logo_url' => $user->organization->logo_url,
+                'logo_url' => $this->resolveStorageUrl($user->organization->logo_url),
                 'primary_color' => $user->organization->primary_color,
                 'status' => $user->organization->status,
                 'subdomain' => $user->organization->subdomain,

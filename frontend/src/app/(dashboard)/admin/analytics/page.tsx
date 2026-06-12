@@ -6,7 +6,9 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   LineChart, Line,
 } from 'recharts';
-import { MOCK_ANALYTICS_COMPAT as MOCK_ANALYTICS } from '@/lib/mock-data';
+import { useQuery } from '@tanstack/react-query';
+import { get } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 const CHART_TOOLTIP = {
@@ -19,9 +21,9 @@ const CHART_TOOLTIP = {
 };
 
 const DATE_RANGES = [
-  { label: 'Today', value: 'today' },
-  { label: '7 days', value: '7d' },
-  { label: '30 days', value: '30d' },
+  { label: 'Today', value: 'today', days: 0 },
+  { label: '7 days', value: '7d', days: 7 },
+  { label: '30 days', value: '30d', days: 30 },
 ];
 
 function KpiCard({ label, value, sub, icon: Icon, color, subtleColor }: {
@@ -44,21 +46,57 @@ function KpiCard({ label, value, sub, icon: Icon, color, subtleColor }: {
   );
 }
 
+function getDateRange(value: string) {
+  const to = new Date().toISOString().split('T')[0];
+  const from = value === 'today'
+    ? to
+    : new Date(Date.now() - (value === '7d' ? 6 : 29) * 86400000).toISOString().split('T')[0];
+  return { from, to };
+}
+
 export default function AnalyticsPage() {
+  const { user } = useAuth();
   const [range, setRange] = useState('7d');
+  const { from, to } = getDateRange(range);
 
-  const delayedFacilities = [
-    { name: 'Kibera Community Health', avg_delay: 18, stops: 22 },
-    { name: 'Eastleigh Health Centre', avg_delay: 12, stops: 18 },
-    { name: 'KNH Outpatient', avg_delay: 9,  stops: 30 },
-    { name: 'MP Shah Hospital', avg_delay: 6, stops: 25 },
-    { name: 'Karen Hospital', avg_delay: 4,  stops: 16 },
-  ];
+  const { data: summary } = useQuery({
+    queryKey: ['analytics-summary', from, to],
+    queryFn: () => get<any>(`/analytics/summary?from=${from}&to=${to}`),
+  });
 
-  const tatData = MOCK_ANALYTICS.weekly.map(d => ({
-    day_label: d.day_label,
-    avg_tat: 42 + Math.floor(d.completed * 0.3),
-  }));
+  const { data: daily = [] } = useQuery({
+    queryKey: ['analytics-daily', from, to],
+    queryFn: () => get<any[]>(`/analytics/daily?from=${from}&to=${to}`),
+  });
+
+  const { data: riders = [] } = useQuery({
+    queryKey: ['analytics-riders', from, to],
+    queryFn: () => get<any[]>(`/analytics/riders?from=${from}&to=${to}`),
+  });
+
+  const { data: facilities = [] } = useQuery({
+    queryKey: ['analytics-facilities', from, to],
+    queryFn: () => get<any[]>(`/analytics/facilities?from=${from}&to=${to}`),
+  });
+
+  const tatData = daily.map((d: any) => ({ day_label: d.day_label, avg_tat: 0 }));
+
+  const handleExport = async (format: 'csv' | 'pdf') => {
+    try {
+      const url = `/analytics/export?format=${format}&from=${from}&to=${to}`;
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('rh_token') : null;
+      const res = await fetch(`${API_BASE}${url}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `routehealth-analytics-${from}-${to}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+      a.click();
+    } catch {
+      toast.error('Export failed. Please try again.');
+    }
+  };
 
   return (
     <div className="p-4 lg:p-8 space-y-6 animate-fade-up">
@@ -69,7 +107,7 @@ export default function AnalyticsPage() {
             Analytics
           </h1>
           <p className="text-[13px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-            PathCare Diagnostics Kenya · May 2026
+            {user?.organization?.name} · {new Date().toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -86,23 +124,27 @@ export default function AnalyticsPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => toast.success('CSV export ready')}
+          <button onClick={() => handleExport('csv')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[12px] font-medium transition-all"
             style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', cursor: 'pointer' }}>
-            <Download size={13} /> Export
+            <Download size={13} /> CSV
+          </button>
+          <button onClick={() => handleExport('pdf')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[12px] font-medium transition-all"
+            style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+            <Download size={13} /> PDF
           </button>
         </div>
       </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <KpiCard label="Total Routes" value="47" icon={BarChart3} color="var(--brand)" subtleColor="var(--brand-subtle)" />
-        <KpiCard label="Total Tasks" value="312" icon={TrendingUp} color="var(--success)" subtleColor="var(--success-subtle)" />
-        <KpiCard label="Completion" value="94%" sub="+2% vs last week" icon={TrendingUp} color="var(--success)" subtleColor="var(--success-subtle)" />
-        <KpiCard label="Avg Delay" value="8 min" sub="−3 min vs last week" icon={Clock} color="var(--warning)" subtleColor="var(--warning-subtle)" />
-        <KpiCard label="Dispute Rate" value="0.6%" sub="3 disputes" icon={AlertTriangle} color="var(--danger)" subtleColor="var(--danger-subtle)" />
-        <KpiCard label="Distance" value="1,840 km" sub="this period" icon={MapPin} color="var(--purple)" subtleColor="var(--purple-subtle)" />
+        <KpiCard label="Total Routes"  value={summary?.total_routes ?? 0}                             icon={BarChart3}      color="var(--brand)"   subtleColor="var(--brand-subtle)" />
+        <KpiCard label="Total Tasks"   value={summary?.total_tasks ?? 0}                              icon={TrendingUp}     color="var(--success)" subtleColor="var(--success-subtle)" />
+        <KpiCard label="Completion"    value={`${summary?.completion_rate ?? 0}%`}                    icon={TrendingUp}     color="var(--success)" subtleColor="var(--success-subtle)" />
+        <KpiCard label="Avg Delay"     value={`${summary?.avg_delay_minutes ?? 0} min`}               icon={Clock}          color="var(--warning)" subtleColor="var(--warning-subtle)" />
+        <KpiCard label="Dispute Rate"  value={`${summary?.dispute_rate ?? 0}%`} sub={`${summary?.disputed_tasks ?? 0} disputes`} icon={AlertTriangle} color="var(--danger)" subtleColor="var(--danger-subtle)" />
+        <KpiCard label="Distance"      value={`${(summary?.total_distance_km ?? 0).toLocaleString()} km`} sub="this period" icon={MapPin}      color="var(--purple)" subtleColor="var(--purple-subtle)" />
       </div>
 
       {/* Charts row */}
@@ -112,32 +154,44 @@ export default function AnalyticsPage() {
             <h3 className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Daily Completions</h3>
             <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Completed vs failed stops</p>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={MOCK_ANALYTICS.weekly} barGap={4} barSize={10}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
-              <XAxis dataKey="day_label" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={24} />
-              <Tooltip {...CHART_TOOLTIP} />
-              <Bar dataKey="completed" name="Completed" fill="var(--success)" radius={[4,4,0,0]} />
-              <Bar dataKey="failed" name="Failed" fill="var(--danger)" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {daily.length === 0 ? (
+            <div className="h-[200px] flex items-center justify-center">
+              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>No data for this period</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={daily} barGap={4} barSize={10}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                <XAxis dataKey="day_label" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={24} />
+                <Tooltip {...CHART_TOOLTIP} />
+                <Bar dataKey="completed" name="Completed" fill="var(--success)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="failed"    name="Failed"    fill="var(--danger)"  radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         <div className="rounded-[14px] p-5" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}>
           <div className="mb-4">
-            <h3 className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Average TAT (minutes)</h3>
-            <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Turnaround time per day</p>
+            <h3 className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Routes Created Per Day</h3>
+            <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Daily dispatch volume</p>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={tatData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
-              <XAxis dataKey="day_label" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
-              <Tooltip {...CHART_TOOLTIP} />
-              <Line type="monotone" dataKey="avg_tat" name="Avg TAT (min)" stroke="var(--brand)" strokeWidth={2} dot={{ r: 3, fill: 'var(--brand)' }} />
-            </LineChart>
-          </ResponsiveContainer>
+          {daily.length === 0 ? (
+            <div className="h-[200px] flex items-center justify-center">
+              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>No data for this period</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={daily}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                <XAxis dataKey="day_label" tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--text-tertiary)', fontSize: 11 }} axisLine={false} tickLine={false} width={32} />
+                <Tooltip {...CHART_TOOLTIP} />
+                <Line type="monotone" dataKey="routes_created" name="Routes" stroke="var(--brand)" strokeWidth={2} dot={{ r: 3, fill: 'var(--brand)' }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
@@ -149,32 +203,38 @@ export default function AnalyticsPage() {
               <Truck size={14} style={{ color: 'var(--text-tertiary)' }} /> Rider On-Time Rate
             </h3>
           </div>
-          <div>
-            {MOCK_ANALYTICS.riderPerformance.map((r, i) => {
-              const color = r.on_time_rate >= 90 ? 'var(--success)' : r.on_time_rate >= 75 ? 'var(--warning)' : 'var(--danger)';
-              return (
-                <div key={i} className="flex items-center gap-4 px-5 py-3.5 transition-colors"
-                  style={{ borderBottom: i < MOCK_ANALYTICS.riderPerformance.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
-                    style={{ background: 'var(--brand-subtle)', color: 'var(--brand)' }}>
-                    {r.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{r.name}</p>
-                    <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{r.tasks_completed} tasks</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-20 h-1.5 rounded-full" style={{ background: 'var(--bg-subtle)' }}>
-                      <div className="h-1.5 rounded-full" style={{ width: `${r.on_time_rate}%`, background: color }} />
+          {riders.length === 0 ? (
+            <div className="px-5 py-8 text-center">
+              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>No rider data for this period</p>
+            </div>
+          ) : (
+            <div>
+              {riders.map((r: any, i: number) => {
+                const color = r.on_time_rate >= 90 ? 'var(--success)' : r.on_time_rate >= 75 ? 'var(--warning)' : 'var(--danger)';
+                return (
+                  <div key={i} className="flex items-center gap-4 px-5 py-3.5 transition-colors"
+                    style={{ borderBottom: i < riders.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+                      style={{ background: 'var(--brand-subtle)', color: 'var(--brand)' }}>
+                      {r.name?.charAt(0)}
                     </div>
-                    <span className="text-[13px] font-semibold w-10 text-right" style={{ color }}>{r.on_time_rate}%</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{r.name}</p>
+                      <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{r.total_stops ?? 0} stops</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-20 h-1.5 rounded-full" style={{ background: 'var(--bg-subtle)' }}>
+                        <div className="h-1.5 rounded-full" style={{ width: `${r.on_time_rate ?? 0}%`, background: color }} />
+                      </div>
+                      <span className="text-[13px] font-semibold w-10 text-right" style={{ color }}>{r.on_time_rate ?? 0}%</span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="rounded-[14px] overflow-hidden" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}>
@@ -183,27 +243,35 @@ export default function AnalyticsPage() {
               <MapPin size={14} style={{ color: 'var(--text-tertiary)' }} /> Most Delayed Facilities
             </h3>
           </div>
-          <div>
-            {delayedFacilities.map((f, i) => {
-              const color = f.avg_delay >= 15 ? 'var(--danger)' : f.avg_delay >= 8 ? 'var(--warning)' : 'var(--success)';
-              return (
-                <div key={i} className="flex items-center gap-4 px-5 py-3.5 transition-colors"
-                  style={{ borderBottom: i < delayedFacilities.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                  <div className="w-7 h-7 rounded-[7px] flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'var(--bg-subtle)' }}>
-                    <span className="text-[11px] font-bold" style={{ color: 'var(--text-tertiary)' }}>{i + 1}</span>
+          {facilities.length === 0 ? (
+            <div className="px-5 py-8 text-center">
+              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>No facility data for this period</p>
+            </div>
+          ) : (
+            <div>
+              {facilities.slice(0, 5).map((f: any, i: number) => {
+                const delay = f.avg_delay_minutes ?? 0;
+                const color = delay >= 15 ? 'var(--danger)' : delay >= 8 ? 'var(--warning)' : 'var(--success)';
+                return (
+                  <div key={i} className="flex items-center gap-4 px-5 py-3.5 transition-colors"
+                    style={{ borderBottom: i < Math.min(facilities.length, 5) - 1 ? '1px solid var(--border-subtle)' : 'none' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                    <div className="w-7 h-7 rounded-[7px] flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-subtle)' }}>
+                      <span className="text-[11px] font-bold" style={{ color: 'var(--text-tertiary)' }}>{i + 1}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{f.name}</p>
+                      <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{f.total_stops ?? 0} stops</p>
+                    </div>
+                    <span className="text-[13px] font-semibold" style={{ color }}>
+                      {delay > 0 ? `+${delay} min` : 'On time'}
+                    </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{f.name}</p>
-                    <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{f.stops} stops</p>
-                  </div>
-                  <span className="text-[13px] font-semibold" style={{ color }}>+{f.avg_delay} min</span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

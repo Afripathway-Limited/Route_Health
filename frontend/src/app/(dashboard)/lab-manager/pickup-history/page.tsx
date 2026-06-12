@@ -183,7 +183,7 @@ export default function PickupHistoryPage() {
       </div>
 
       {/* Table (desktop) */}
-      <div className="data-table rounded-[14px] overflow-hidden" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}>
+      <div className="data-table rounded-[14px] overflow-hidden" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}><div className="overflow-x-auto">
         {loading ? (
           <div className="p-4 space-y-3">
             {[1, 2, 3, 4].map(i => (
@@ -273,7 +273,7 @@ export default function PickupHistoryPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </div></div>
 
       {/* Mobile cards */}
       <div className="mobile-cards space-y-3">

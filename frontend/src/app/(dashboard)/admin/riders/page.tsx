@@ -196,7 +196,7 @@ export default function RidersPage() {
       </div>
 
       {/* Desktop table */}
-      <div className="data-table rounded-[14px] overflow-hidden" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}>
+      <div className="data-table rounded-[14px] overflow-hidden" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}><div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -296,6 +296,7 @@ export default function RidersPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Mobile cards */}

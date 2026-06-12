@@ -147,7 +147,7 @@ export default function UsersPage() {
       </div>
 
       {/* Desktop table */}
-      <div className="data-table rounded-[14px] overflow-hidden" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}>
+      <div className="data-table rounded-[14px] overflow-hidden" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}><div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -221,7 +221,7 @@ export default function UsersPage() {
             )}
           </tbody>
         </table>
-      </div>
+      </div></div>
 
       {/* Mobile cards */}
       <div className="mobile-cards space-y-3">

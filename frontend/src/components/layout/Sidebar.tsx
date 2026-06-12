@@ -162,10 +162,14 @@ export function Sidebar() {
         }}
       >
         <div
-          className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0"
-          style={{ background: 'var(--brand)' }}
+          className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0 overflow-hidden"
+          style={{ background: user.organization?.logo_url ? 'transparent' : 'var(--brand)' }}
         >
-          <Zap size={15} className="text-white" />
+          {user.organization?.logo_url
+            ? <img src={user.organization.logo_url} alt="Logo" className="w-8 h-8 object-contain rounded-[8px]"
+                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            : <Zap size={15} className="text-white" />
+          }
         </div>
         {!collapsed && (
           <div className="min-w-0 overflow-hidden">
@@ -173,13 +177,13 @@ export function Sidebar() {
               className="text-[14px] font-semibold leading-tight tracking-tight whitespace-nowrap"
               style={{ color: 'var(--text-primary)' }}
             >
-              RouteHealth
+              {user.organization?.name ?? 'RouteHealth'}
             </p>
             <p
               className="text-[11px] truncate leading-tight mt-px"
               style={{ color: 'var(--text-tertiary)' }}
             >
-              {user.organization?.name ?? 'Platform Admin'}
+              {user.role === 'super_admin' ? 'Platform Admin' : 'Organization'}
             </p>
           </div>
         )}
