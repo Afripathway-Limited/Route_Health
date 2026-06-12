@@ -97,10 +97,10 @@ class RoutingEngineService
         $maxPerRider = (int) ceil($tasks->count() / max(1, $riders->count()));
 
         foreach ($tasks as $task) {
-            if (!$task->facility) continue;
-
-            $taskLat = (float) $task->facility->latitude;
-            $taskLng = (float) $task->facility->longitude;
+            // Support tasks with direct coordinates (no facility_id)
+            $taskLat = $task->facility ? (float) $task->facility->latitude : (float) $task->pickup_lat;
+            $taskLng = $task->facility ? (float) $task->facility->longitude : (float) $task->pickup_lng;
+            if (!$taskLat || !$taskLng) continue;
 
             // Find the rider with lowest load and closest home base or last assigned stop
             $bestRider = null;
@@ -120,8 +120,12 @@ class RoutingEngineService
                 // If rider has assignments, use last stop location
                 if (!empty($assignments[$rider->id])) {
                     $lastTask = end($assignments[$rider->id]);
-                    $riderLat = (float) $lastTask->facility->latitude;
-                    $riderLng = (float) $lastTask->facility->longitude;
+                    $riderLat = $lastTask->facility
+                        ? (float) $lastTask->facility->latitude
+                        : (float) $lastTask->pickup_lat;
+                    $riderLng = $lastTask->facility
+                        ? (float) $lastTask->facility->longitude
+                        : (float) $lastTask->pickup_lng;
                 }
 
                 $dist = $this->haversineDistance($riderLat, $riderLng, $taskLat, $taskLng);
@@ -160,10 +164,9 @@ class RoutingEngineService
         $sequence = 1;
 
         foreach ($tasks as $task) {
-            if (!$task->facility) continue;
-
-            $facilityLat = (float) $task->facility->latitude;
-            $facilityLng = (float) $task->facility->longitude;
+            $facilityLat = $task->facility ? (float) $task->facility->latitude : (float) $task->pickup_lat;
+            $facilityLng = $task->facility ? (float) $task->facility->longitude : (float) $task->pickup_lng;
+            if (!$facilityLat || !$facilityLng) continue;
 
             $road = $this->getRoadDistance($currentLat, $currentLng, $facilityLat, $facilityLng);
             $distKm = $road['km'];
@@ -171,8 +174,8 @@ class RoutingEngineService
 
             $arrivalTime = $currentTime->copy()->addMinutes($travelMinutes);
 
-            // Apply AI ETA adjustment
-            $adjustment = $this->getEtaAdjustment($task->facility_id, $arrivalTime);
+            // Apply AI ETA adjustment (only for facility-linked tasks)
+            $adjustment = $task->facility_id ? $this->getEtaAdjustment($task->facility_id, $arrivalTime) : 0;
             $aiAdjustedArrival = $arrivalTime->copy()->addMinutes($adjustment);
 
             // If we arrive before the time window, wait
@@ -181,13 +184,16 @@ class RoutingEngineService
                 $aiAdjustedArrival = $windowStart->copy();
             }
 
+            $facilityName = $task->facility ? $task->facility->name : ($task->pickup_name ?? 'Location');
+            $facilityCity = $task->facility ? $task->facility->city : '';
+
             $stops[] = [
                 'sequence' => $sequence++,
                 'task_id' => $task->id,
                 'facility_id' => $task->facility_id,
-                'facility_name' => $task->facility->name,
-                'facility_city' => $task->facility->city,
-                'facility_type' => $task->facility->facility_type,
+                'facility_name' => $facilityName,
+                'facility_city' => $facilityCity,
+                'facility_type' => $task->facility?->facility_type ?? 'clinic',
                 'latitude' => $facilityLat,
                 'longitude' => $facilityLng,
                 'planned_arrival' => $aiAdjustedArrival->toIso8601String(),
@@ -200,7 +206,7 @@ class RoutingEngineService
                 'travel_minutes' => round($travelMinutes, 1),
                 'eta_ai_adjusted' => $adjustment != 0,
                 'eta_adjustment_minutes' => $adjustment,
-                'notes' => $task->facility->special_notes,
+                'notes' => $task->facility?->special_notes,
             ];
 
             $totalDistKm += $distKm;

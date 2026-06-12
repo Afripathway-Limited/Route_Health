@@ -12,7 +12,7 @@ class EnsureOrganizationActive
     {
         $user = $request->user();
 
-        if ($user && !$user->isSuperAdmin()) {
+        if ($user && !$user->isSuperAdmin() && $user->organization_id !== null) {
             if (!$user->organization || $user->organization->status !== 'active') {
                 return response()->json([
                     'success' => false,

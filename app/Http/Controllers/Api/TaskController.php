@@ -47,22 +47,31 @@ class TaskController extends Controller
         $orgId = $request->user()->organization_id;
 
         $request->validate([
-            'facility_id' => "required|exists:facilities,id",
+            'facility_id' => 'nullable|exists:facilities,id',
             'type' => 'required|in:pickup,delivery',
             'scheduled_date' => 'required|date',
             'time_window_start' => 'required|date_format:H:i',
             'time_window_end' => 'required|date_format:H:i|after:time_window_start',
             'priority' => 'required|in:standard,urgent',
             'notes' => 'nullable|string',
+            'rider_id' => 'nullable|exists:riders,id',
+            'pickup_name' => 'nullable|string|max:255',
+            'pickup_lat' => 'nullable|numeric|between:-90,90',
+            'pickup_lng' => 'nullable|numeric|between:-180,180',
+            'dropoff_name' => 'nullable|string|max:255',
+            'dropoff_lat' => 'nullable|numeric|between:-90,90',
+            'dropoff_lng' => 'nullable|numeric|between:-180,180',
         ]);
 
-        // Verify facility belongs to org
-        $facility = Facility::where('id', $request->facility_id)
-            ->where('organization_id', $orgId)
-            ->firstOrFail();
+        // Verify facility belongs to org (only when facility_id provided)
+        if ($request->facility_id) {
+            Facility::where('id', $request->facility_id)
+                ->where('organization_id', $orgId)
+                ->firstOrFail();
+        }
 
         $task = Task::create([
-            ...$request->only(['facility_id', 'type', 'scheduled_date', 'time_window_start', 'time_window_end', 'priority', 'notes']),
+            ...$request->only(['facility_id', 'type', 'scheduled_date', 'time_window_start', 'time_window_end', 'priority', 'notes', 'rider_id', 'pickup_name', 'pickup_lat', 'pickup_lng', 'dropoff_name', 'dropoff_lat', 'dropoff_lng']),
             'organization_id' => $orgId,
             'status' => 'planned',
             'created_by' => $request->user()->id,
@@ -177,9 +186,35 @@ class TaskController extends Controller
         ]);
     }
 
+    public function assignRider(Request $request, Task $task): JsonResponse
+    {
+        $this->authorizeOrg($request, $task);
+
+        $request->validate([
+            'rider_id' => 'nullable|exists:riders,id',
+        ]);
+
+        $riderId = $request->rider_id;
+
+        $task->update([
+            'rider_id' => $riderId,
+            'status'   => $riderId ? 'assigned' : 'planned',
+        ]);
+
+        // Mark rider busy when newly assigned
+        if ($riderId) {
+            \App\Models\Rider::where('id', $riderId)
+                ->where('availability_status', 'free')
+                ->update(['availability_status' => 'busy']);
+        }
+
+        return $this->success($this->formatTask($task->load(['facility', 'rider', 'routeStop.route.rider'])), 'Rider assigned');
+    }
+
     private function formatTask(Task $t): array
     {
-        $rider = $t->routeStop?->route?->rider;
+        $routeRider = $t->routeStop?->route?->rider;
+        $directRider = $t->rider ?? $routeRider;
 
         return [
             'id' => $t->id,
@@ -202,7 +237,15 @@ class TaskController extends Controller
             'status' => $t->status,
             'notes' => $t->notes,
             'route_id' => $t->route_id,
-            'assigned_rider' => $rider ? ['id' => $rider->id, 'name' => $rider->name] : null,
+            'rider_id' => $t->rider_id,
+            'rider_name' => $directRider?->name,
+            'assigned_rider' => $directRider ? ['id' => $directRider->id, 'name' => $directRider->name] : null,
+            'pickup_name' => $t->pickup_name,
+            'pickup_lat' => $t->pickup_lat ? (float)$t->pickup_lat : null,
+            'pickup_lng' => $t->pickup_lng ? (float)$t->pickup_lng : null,
+            'dropoff_name' => $t->dropoff_name,
+            'dropoff_lat' => $t->dropoff_lat ? (float)$t->dropoff_lat : null,
+            'dropoff_lng' => $t->dropoff_lng ? (float)$t->dropoff_lng : null,
             'created_at' => $t->created_at,
         ];
     }

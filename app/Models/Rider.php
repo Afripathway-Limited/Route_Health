@@ -12,8 +12,9 @@ class Rider extends Model
     use BelongsToOrganization;
 
     protected $fillable = [
-        'organization_id', 'user_id', 'name', 'phone', 'vehicle_type',
+        'organization_id', 'user_id', 'name', 'email', 'phone', 'vehicle_type',
         'home_facility_id', 'photo_url', 'notes', 'is_active',
+        'coverage_city', 'coverage_lat', 'coverage_lng', 'coverage_radius_km', 'availability_status',
     ];
 
     protected $casts = [

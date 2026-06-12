@@ -339,5 +339,140 @@ class DemoOrganizationSeeder extends Seeder
         $this->command->info('Admin: admin@pathcare.ke / Demo@2024!');
         $this->command->info('Dispatcher: dispatcher@pathcare.ke / Demo@2024!');
         $this->command->info('Lab Manager: lab@nairobi-general.ke / Demo@2024!');
+
+        // Update PathCare org to include service area
+        $org->update([
+            'service_city' => 'Nairobi, Kenya',
+            'service_lat' => -1.2921,
+            'service_lng' => 36.8219,
+            'service_radius_km' => 35,
+        ]);
+
+        // LifeLab Tanzania
+        $org2 = Organization::firstOrCreate(
+            ['subdomain' => 'lifelab'],
+            [
+                'name' => 'LifeLab Tanzania',
+                'country' => 'Tanzania',
+                'primary_color' => '#7C3AED',
+                'subdomain' => 'lifelab',
+                'status' => 'active',
+                'subscription_plan' => 'enterprise',
+                'max_riders' => -1,
+                'max_facilities' => -1,
+                'max_tasks_per_month' => -1,
+                'service_city' => 'Dar es Salaam, Tanzania',
+                'service_lat' => -6.8160,
+                'service_lng' => 39.2803,
+                'service_radius_km' => 30,
+            ]
+        );
+        $admin2 = User::firstOrCreate(
+            ['email' => 'amina@lifelab.tz'],
+            ['name' => 'Amina Juma', 'password' => bcrypt('Demo@2024!'), 'organization_id' => $org2->id, 'phone' => '+255712001001', 'is_active' => true]
+        );
+        $admin2->assignRole('org_admin');
+
+        User::firstOrCreate(
+            ['email' => 'ops@lifelab.tz'],
+            ['name' => 'Ops Dar', 'password' => bcrypt('Demo@2024!'), 'organization_id' => $org2->id, 'phone' => '+255712001002', 'is_active' => true]
+        )->assignRole('dispatcher');
+
+        // Dar es Salaam facilities
+        $darFacilities = [
+            ['name' => 'Muhimbili National Hospital', 'lat' => -6.8027, 'lng' => 39.2709, 'city' => 'Dar es Salaam', 'type' => 'hospital', 'contact' => 'Dr. Ali Mwinyi', 'phone' => '+255222150000'],
+            ['name' => 'Aga Khan Hospital DSM', 'lat' => -6.8095, 'lng' => 39.2893, 'city' => 'Dar es Salaam', 'type' => 'hospital', 'contact' => 'Nurse Fatma Ally', 'phone' => '+255222113366'],
+            ['name' => 'Regency Medical Centre', 'lat' => -6.8060, 'lng' => 39.2820, 'city' => 'Dar es Salaam', 'type' => 'clinic', 'contact' => 'Lab Tech Omar Hassan', 'phone' => '+255222602501'],
+            ['name' => 'IST Clinic', 'lat' => -6.7817, 'lng' => 39.2485, 'city' => 'Dar es Salaam', 'type' => 'clinic', 'contact' => 'Dr. Zara Msigwa', 'phone' => '+255222668870'],
+        ];
+        foreach ($darFacilities as $fd) {
+            Facility::firstOrCreate(
+                ['organization_id' => $org2->id, 'name' => $fd['name']],
+                [
+                    'organization_id' => $org2->id, 'name' => $fd['name'],
+                    'address_line_1' => $fd['name'] . ', ' . $fd['city'],
+                    'city' => $fd['city'], 'country' => 'Tanzania',
+                    'latitude' => $fd['lat'], 'longitude' => $fd['lng'],
+                    'facility_type' => $fd['type'], 'contact_name' => $fd['contact'],
+                    'contact_phone' => $fd['phone'], 'is_active' => true,
+                ]
+            );
+        }
+
+        // MedExpress Uganda
+        $org3 = Organization::firstOrCreate(
+            ['subdomain' => 'medexpress'],
+            [
+                'name' => 'MedExpress Uganda',
+                'country' => 'Uganda',
+                'primary_color' => '#DC2626',
+                'subdomain' => 'medexpress',
+                'status' => 'active',
+                'subscription_plan' => 'starter',
+                'max_riders' => 5,
+                'max_facilities' => 15,
+                'max_tasks_per_month' => 300,
+                'service_city' => 'Kampala, Uganda',
+                'service_lat' => 0.3163,
+                'service_lng' => 32.5822,
+                'service_radius_km' => 25,
+            ]
+        );
+        $admin3 = User::firstOrCreate(
+            ['email' => 'robert@medexpress.ug'],
+            ['name' => 'Robert Okello', 'password' => bcrypt('Demo@2024!'), 'organization_id' => $org3->id, 'phone' => '+256772001001', 'is_active' => true]
+        );
+        $admin3->assignRole('org_admin');
+
+        User::firstOrCreate(
+            ['email' => 'dispatch@medexpress.ug'],
+            ['name' => 'Dispatch Kampala', 'password' => bcrypt('Demo@2024!'), 'organization_id' => $org3->id, 'phone' => '+256772001002', 'is_active' => true]
+        )->assignRole('dispatcher');
+
+        // Kampala facilities
+        $kampalaFacilities = [
+            ['name' => 'Mulago National Referral Hospital', 'lat' => 0.3379, 'lng' => 32.5765, 'city' => 'Kampala', 'type' => 'hospital', 'contact' => 'Dr. Grace Namutebi', 'phone' => '+256414541188'],
+            ['name' => 'Case Hospital Kampala', 'lat' => 0.3336, 'lng' => 32.5826, 'city' => 'Kampala', 'type' => 'hospital', 'contact' => 'Nurse Agnes Apio', 'phone' => '+256414287530'],
+            ['name' => 'International Hospital Kampala', 'lat' => 0.2885, 'lng' => 32.5988, 'city' => 'Kampala', 'type' => 'hospital', 'contact' => 'Lab Manager Brian Ssemanda', 'phone' => '+256312200400'],
+        ];
+        foreach ($kampalaFacilities as $fd) {
+            Facility::firstOrCreate(
+                ['organization_id' => $org3->id, 'name' => $fd['name']],
+                [
+                    'organization_id' => $org3->id, 'name' => $fd['name'],
+                    'address_line_1' => $fd['name'] . ', ' . $fd['city'],
+                    'city' => $fd['city'], 'country' => 'Uganda',
+                    'latitude' => $fd['lat'], 'longitude' => $fd['lng'],
+                    'facility_type' => $fd['type'], 'contact_name' => $fd['contact'],
+                    'contact_phone' => $fd['phone'], 'is_active' => true,
+                ]
+            );
+        }
+
+        // SaniLab Rwanda (suspended)
+        $org4 = Organization::firstOrCreate(
+            ['subdomain' => 'sanilab'],
+            [
+                'name' => 'SaniLab Rwanda',
+                'country' => 'Rwanda',
+                'primary_color' => '#0891B2',
+                'subdomain' => 'sanilab',
+                'status' => 'suspended',
+                'subscription_plan' => 'starter',
+                'max_riders' => 5,
+                'max_facilities' => 15,
+                'max_tasks_per_month' => 300,
+                'service_city' => 'Kigali, Rwanda',
+                'service_lat' => -1.9441,
+                'service_lng' => 30.0619,
+                'service_radius_km' => 20,
+            ]
+        );
+        User::firstOrCreate(
+            ['email' => 'marie@sanilab.rw'],
+            ['name' => 'Marie Uwase', 'password' => bcrypt('Demo@2024!'), 'organization_id' => $org4->id, 'phone' => '+250788001001', 'is_active' => false]
+        )->assignRole('org_admin');
+
+        $this->command->info('Additional demo organizations seeded: LifeLab Tanzania, MedExpress Uganda, SaniLab Rwanda');
     }
 }

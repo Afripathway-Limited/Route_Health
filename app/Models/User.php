@@ -17,6 +17,7 @@ class User extends Authenticatable
     protected $fillable = [
         'organization_id', 'name', 'email', 'phone', 'password',
         'avatar_url', 'is_active', 'last_login_at', 'requires_password_change',
+        'invitation_token', 'invitation_expires_at',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -24,6 +25,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'last_login_at' => 'datetime',
+        'invitation_expires_at' => 'datetime',
         'password' => 'hashed',
         'is_active' => 'boolean',
         'requires_password_change' => 'boolean',

@@ -75,8 +75,11 @@ class RouteController extends Controller
             'depot_facility_id' => 'required|integer|exists:facilities,id',
         ]);
 
+        // Include both org-specific and platform riders (organization_id = null)
         $riders = Rider::whereIn('id', $request->rider_ids)
-            ->where('organization_id', $orgId)
+            ->where(function ($q) use ($orgId) {
+                $q->where('organization_id', $orgId)->orWhereNull('organization_id');
+            })
             ->with('homeFacility')
             ->get();
 
@@ -119,7 +122,9 @@ class RouteController extends Controller
 
             foreach ($request->routes as $routeData) {
                 $rider = Rider::where('id', $routeData['rider_id'])
-                    ->where('organization_id', $orgId)
+                    ->where(function ($q) use ($orgId) {
+                        $q->where('organization_id', $orgId)->orWhereNull('organization_id');
+                    })
                     ->firstOrFail();
 
                 $route = Route::create([

@@ -1,36 +1,66 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Plus, Users, Trash2, Mail, UserCheck, UserX } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, Plus, Users, Trash2, UserCheck, UserX, Eye, EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
-import { MOCK_USERS } from '@/lib/mock-data';
+import { get, post, patch, del, getErrorMessage } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 const ROLE_LABELS: Record<string, string> = {
-  org_admin: 'Admin',
   dispatcher: 'Dispatcher',
   lab_manager: 'Lab Manager',
-  super_admin: 'Super Admin',
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  org_admin: 'warning',
   dispatcher: 'brand',
   lab_manager: 'purple',
-  super_admin: 'danger',
 };
 
-interface InviteForm { name: string; email: string; role: 'org_admin' | 'dispatcher' }
+interface AddUserForm {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+}
+
+interface OrgUser {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  is_active: boolean;
+  last_login_at: string | null;
+  avatar_url: string | null;
+}
+
+const BLANK_FORM: AddUserForm = { name: '', email: '', phone: '', password: '' };
 
 export default function UsersPage() {
-  const [search, setSearch] = useState('');
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState<typeof MOCK_USERS[0] | null>(null);
-  const [users, setUsers] = useState(MOCK_USERS);
-  const [form, setForm] = useState<InviteForm>({ name: '', email: '', role: 'dispatcher' });
+  const [search, setSearch]             = useState('');
+  const [addOpen, setAddOpen]           = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState<OrgUser | null>(null);
+  const [users, setUsers]               = useState<OrgUser[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [saving, setSaving]             = useState(false);
+  const [form, setForm]                 = useState<AddUserForm>(BLANK_FORM);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const data = await get<OrgUser[]>('/users');
+      setUsers(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
 
   const filtered = users.filter(u =>
     !search ||
@@ -38,36 +68,51 @@ export default function UsersPage() {
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleInvite = () => {
-    if (!form.name || !form.email) {
-      toast.error('Name and email are required');
+  const openAdd = () => {
+    setForm(BLANK_FORM);
+    setShowPassword(false);
+    setAddOpen(true);
+  };
+
+  const handleAdd = async () => {
+    if (!form.name || !form.email || !form.password) {
+      toast.error('Name, email and password are required');
       return;
     }
-    const newUser = {
-      id: Date.now(),
-      name: form.name,
-      email: form.email,
-      role: form.role,
-      is_active: true,
-      last_login_at: null,
-      avatar_url: null,
-      organization: { id: 1, name: 'PathCare Diagnostics Kenya' },
-    };
-    setUsers(prev => [...prev, newUser as any]);
-    toast.success(`Invitation sent to ${form.email}`);
-    setForm({ name: '', email: '', role: 'dispatcher' });
-    setInviteOpen(false);
+    setSaving(true);
+    try {
+      await post('/users/invite', form);
+      toast.success(`${form.name} added as Dispatcher`);
+      await loadUsers();
+      setAddOpen(false);
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     if (!confirmRemove) return;
-    setUsers(prev => prev.filter(u => u.id !== confirmRemove.id));
-    toast.success(`${confirmRemove.name} removed`);
-    setConfirmRemove(null);
+    try {
+      await del(`/users/${confirmRemove.id}`);
+      setUsers(prev => prev.filter(u => u.id !== confirmRemove.id));
+      toast.success(`${confirmRemove.name} removed`);
+      setConfirmRemove(null);
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    }
   };
 
-  const toggleActive = (id: number) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, is_active: !u.is_active } : u));
+  const toggleActive = async (id: number) => {
+    const user = users.find(u => u.id === id);
+    if (!user) return;
+    try {
+      await patch(`/users/${id}/${user.is_active ? 'deactivate' : 'activate'}`);
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, is_active: !u.is_active } : u));
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -90,7 +135,7 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="hidden md:block">
-          <Button onClick={() => setInviteOpen(true)}><Mail size={14} /> Invite User</Button>
+          <Button onClick={openAdd}><Plus size={14} /> Add User</Button>
         </div>
       </div>
 
@@ -123,8 +168,8 @@ export default function UsersPage() {
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0"
                       style={{ background: 'var(--brand-subtle)', color: 'var(--brand)' }}>
-                      {(u as any).avatar_url
-                        ? <img src={(u as any).avatar_url} alt={u.name} className="w-8 h-8 rounded-full object-cover" />
+                      {u.avatar_url
+                        ? <img src={u.avatar_url} alt={u.name} className="w-8 h-8 rounded-full object-cover" />
                         : u.name.charAt(0)}
                     </div>
                     <span className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{u.name}</span>
@@ -132,7 +177,7 @@ export default function UsersPage() {
                 </td>
                 <td className="px-4 py-3.5 text-[13px]" style={{ color: 'var(--text-secondary)' }}>{u.email}</td>
                 <td className="px-4 py-3.5">
-                  <Badge color={ROLE_COLORS[u.role] as any}>{ROLE_LABELS[u.role] ?? u.role}</Badge>
+                  <Badge color={ROLE_COLORS[u.role] as any ?? 'gray'}>{ROLE_LABELS[u.role] ?? u.role}</Badge>
                 </td>
                 <td className="px-4 py-3.5 text-[13px]" style={{ color: 'var(--text-tertiary)' }}>
                   {u.last_login_at
@@ -152,8 +197,7 @@ export default function UsersPage() {
                   </button>
                 </td>
                 <td className="px-4 py-3.5">
-                  <button
-                    onClick={() => setConfirmRemove(u)}
+                  <button onClick={() => setConfirmRemove(u)}
                     className="w-7 h-7 rounded-[7px] flex items-center justify-center transition-all"
                     style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
                     onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'var(--danger-subtle)'; el.style.color = 'var(--danger)'; }}
@@ -163,11 +207,15 @@ export default function UsersPage() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {loading && (
+              <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px]" style={{ color: 'var(--text-tertiary)' }}>Loading…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-12 text-center">
                   <Users size={32} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-                  <p className="text-[14px] font-medium" style={{ color: 'var(--text-secondary)' }}>No users found</p>
+                  <p className="text-[14px] font-medium" style={{ color: 'var(--text-secondary)' }}>No team members yet</p>
+                  <p className="text-[13px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Add a dispatcher to get started</p>
                 </td>
               </tr>
             )}
@@ -188,19 +236,19 @@ export default function UsersPage() {
                 <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{u.name}</p>
                 <p className="text-[12px] truncate" style={{ color: 'var(--text-tertiary)' }}>{u.email}</p>
               </div>
-              <Badge color={ROLE_COLORS[u.role] as any}>{ROLE_LABELS[u.role]}</Badge>
+              <Badge color={ROLE_COLORS[u.role] as any ?? 'gray'}>{ROLE_LABELS[u.role] ?? u.role}</Badge>
             </div>
           </div>
         ))}
-        <button onClick={() => setInviteOpen(true)}
+        <button onClick={openAdd}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-[12px] text-[13px] font-medium transition-all"
           style={{ border: '1.5px dashed var(--border-strong)', color: 'var(--text-tertiary)', background: 'none', cursor: 'pointer' }}>
-          <Plus size={14} /> Invite team member
+          <Plus size={14} /> Add team member
         </button>
       </div>
 
-      {/* Invite Modal */}
-      <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite Team Member">
+      {/* ─── Add User Modal ──────────────────────────────────────────────── */}
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Dispatcher">
         <div className="space-y-4">
           <div>
             <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Full name *</label>
@@ -211,23 +259,44 @@ export default function UsersPage() {
             <Input type="email" placeholder="jane@organization.ke" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
           </div>
           <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Role</label>
-            <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value as any }))} className="rh-select">
-              <option value="dispatcher">Dispatcher</option>
-              <option value="org_admin">Admin</option>
-            </select>
+            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Phone</label>
+            <Input placeholder="+254 700 000000" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
           </div>
-          <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
-            An email with login instructions will be sent to this address.
+          <div>
+            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Password *</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Min 8 characters"
+                value={form.password}
+                onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
+                style={{ ...inputStyle, paddingRight: 42 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                style={{
+                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-tertiary)', display: 'flex', padding: 0,
+                }}>
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+          <p className="text-[12px] px-3 py-2 rounded-[8px]" style={{ background: 'var(--brand-subtle)', color: 'var(--brand)' }}>
+            Role: <strong>Dispatcher</strong> — can create tasks, plan routes, and assign riders.
           </p>
           <div className="flex gap-3 pt-1">
-            <Button variant="secondary" onClick={() => setInviteOpen(false)} className="flex-1">Cancel</Button>
-            <Button onClick={handleInvite} className="flex-1"><Mail size={14} /> Send Invitation</Button>
+            <Button variant="secondary" onClick={() => setAddOpen(false)} className="flex-1">Cancel</Button>
+            <Button onClick={handleAdd} className="flex-1" disabled={saving}>
+              <Plus size={14} /> {saving ? 'Creating…' : 'Create Account'}
+            </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Remove Confirm Modal */}
+      {/* ─── Remove Confirm Modal ────────────────────────────────────────── */}
       <Modal open={!!confirmRemove} onClose={() => setConfirmRemove(null)} title="Remove Member">
         <div className="space-y-4">
           <p className="text-[14px]" style={{ color: 'var(--text-secondary)' }}>

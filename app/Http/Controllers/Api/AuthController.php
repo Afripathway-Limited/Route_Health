@@ -50,11 +50,12 @@ class AuthController extends Controller
 
         $roleName = $user->getRoleName();
         $redirectPath = match($roleName) {
-            'super_admin' => '/super-admin',
-            'org_admin' => '/admin',
-            'dispatcher' => '/dispatcher',
-            'lab_manager' => '/lab-manager',
-            default => '/dashboard',
+            'super_admin'  => '/super-admin',
+            'org_admin'    => '/admin',
+            'dispatcher'   => '/dispatcher',
+            'lab_manager'  => '/lab-manager',
+            'rider'        => '/driver',
+            default        => '/dashboard',
         };
 
         return $this->success([
@@ -158,6 +159,45 @@ class AuthController extends Controller
         return $this->success(null, 'Password updated successfully');
     }
 
+    public function acceptInvitation(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token'    => 'required|string',
+            'password' => 'required|string|min:8',
+        ]);
+
+        $user = User::where('invitation_token', $request->token)
+            ->where('invitation_expires_at', '>', now())
+            ->first();
+
+        if (!$user) {
+            return $this->error('This invitation link is invalid or has expired.', 422);
+        }
+
+        $user->update([
+            'password'              => Hash::make($request->password),
+            'is_active'             => true,
+            'invitation_token'      => null,
+            'invitation_expires_at' => null,
+            'requires_password_change' => false,
+            'last_login_at'         => now(),
+        ]);
+
+        // Activate the linked rider
+        if ($user->rider) {
+            $user->rider->update(['is_active' => true]);
+        }
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return $this->success([
+            'token'      => $token,
+            'token_type' => 'Bearer',
+            'user'       => $this->formatUser($user->load('organization')),
+            'redirect'   => '/driver',
+        ], 'Account activated — welcome to RouteHealth!');
+    }
+
     private function formatUser(User $user): array
     {
         return [
@@ -178,6 +218,10 @@ class AuthController extends Controller
                 'status' => $user->organization->status,
                 'subdomain' => $user->organization->subdomain,
                 'country' => $user->organization->country,
+                'service_city' => $user->organization->service_city,
+                'service_lat' => $user->organization->service_lat ? (float) $user->organization->service_lat : null,
+                'service_lng' => $user->organization->service_lng ? (float) $user->organization->service_lng : null,
+                'service_radius_km' => $user->organization->service_radius_km ? (int) $user->organization->service_radius_km : 30,
             ] : null,
         ];
     }

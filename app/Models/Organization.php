@@ -16,6 +16,7 @@ class Organization extends Model
         'status', 'subscription_plan', 'subscription_plan_id', 'trial_ends_at',
         'max_riders', 'max_facilities', 'max_tasks_per_month',
         'notification_preferences', 'photo_retention_months',
+        'service_city', 'service_lat', 'service_lng', 'service_radius_km',
     ];
 
     protected $casts = [

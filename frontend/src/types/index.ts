@@ -1,3 +1,16 @@
+// ─── Shared lightweight types ──────────────────────────────────────────────────
+
+export interface AllRider {
+  id: number;
+  name: string;
+  vehicle_type: string;
+  availability_status: 'free' | 'on_route' | 'busy' | 'unavailable';
+  coverage_lat: number | null;
+  coverage_lng: number | null;
+  coverage_city: string | null;
+  is_active: boolean;
+}
+
 // ─── Auth & Users ──────────────────────────────────────────────────────────────
 
 export type UserRole = 'super_admin' | 'org_admin' | 'dispatcher' | 'lab_manager' | 'rider';
@@ -11,6 +24,10 @@ export interface Organization {
   subdomain: string | null;
   status: 'active' | 'suspended';
   subscription_plan: 'starter' | 'professional' | 'enterprise';
+  service_city?: string | null;
+  service_lat?: number | null;
+  service_lng?: number | null;
+  service_radius_km?: number | null;
 }
 
 export interface AuthUser {
@@ -64,6 +81,11 @@ export interface Rider {
   photo_url: string | null;
   notes: string | null;
   is_active: boolean;
+  availability_status: 'free' | 'busy' | 'on_route';
+  coverage_lat: number | null;
+  coverage_lng: number | null;
+  coverage_radius_km: number;
+  coverage_city: string | null;
   current_status: 'available' | 'on_route' | 'inactive';
   tasks_this_month: number;
   on_time_rate: number;

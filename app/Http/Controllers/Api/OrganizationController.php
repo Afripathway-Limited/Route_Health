@@ -42,7 +42,12 @@ class OrganizationController extends Controller
             'admin_name' => 'required|string|max:255',
             'admin_email' => 'required|email|unique:users,email',
             'admin_phone' => 'nullable|string|max:20',
+            'admin_password' => 'required|string|min:8',
             'subscription_plan' => 'required|in:starter,professional,enterprise',
+            'service_city' => 'nullable|string|max:255',
+            'service_lat' => 'nullable|numeric|between:-90,90',
+            'service_lng' => 'nullable|numeric|between:-180,180',
+            'service_radius_km' => 'nullable|integer|min:5|max:500',
         ]);
 
         $org = Organization::create([
@@ -50,6 +55,10 @@ class OrganizationController extends Controller
             'country' => $request->country,
             'subscription_plan' => $request->subscription_plan,
             'status' => 'active',
+            'service_city' => $request->service_city,
+            'service_lat' => $request->service_lat,
+            'service_lng' => $request->service_lng,
+            'service_radius_km' => $request->service_radius_km ?? 30,
         ]);
 
         $admin = User::create([
@@ -57,12 +66,10 @@ class OrganizationController extends Controller
             'name' => $request->admin_name,
             'email' => $request->admin_email,
             'phone' => $request->admin_phone,
-            'password' => bcrypt(\Str::random(16)),
+            'password' => bcrypt($request->admin_password),
             'is_active' => true,
         ]);
         $admin->assignRole('org_admin');
-
-        // TODO: Send invite email with temporary password
 
         return $this->success($this->formatOrg($org->load('users')), 'Organization created', 201);
     }
@@ -80,9 +87,13 @@ class OrganizationController extends Controller
             'country' => 'sometimes|string|max:100',
             'subscription_plan' => 'sometimes|in:starter,professional,enterprise',
             'primary_color' => 'sometimes|string|max:7',
+            'service_city' => 'nullable|string|max:255',
+            'service_lat' => 'nullable|numeric|between:-90,90',
+            'service_lng' => 'nullable|numeric|between:-180,180',
+            'service_radius_km' => 'nullable|integer|min:5|max:500',
         ]);
 
-        $organization->update($request->only(['name', 'country', 'subscription_plan', 'primary_color']));
+        $organization->update($request->only(['name', 'country', 'subscription_plan', 'primary_color', 'service_city', 'service_lat', 'service_lng', 'service_radius_km']));
 
         return $this->success($this->formatOrg($organization), 'Organization updated');
     }
@@ -109,6 +120,18 @@ class OrganizationController extends Controller
             'total_organizations' => Organization::count(),
             'suspended_organizations' => Organization::where('status', 'suspended')->count(),
         ]);
+    }
+
+    public function activateUser(User $user): JsonResponse
+    {
+        $user->update(['is_active' => true]);
+        return $this->success(null, 'User activated');
+    }
+
+    public function deactivateUser(User $user): JsonResponse
+    {
+        $user->update(['is_active' => false]);
+        return $this->success(null, 'User deactivated');
     }
 
     public function platformUsers(\Illuminate\Http\Request $request): \Illuminate\Http\JsonResponse
@@ -165,6 +188,10 @@ class OrganizationController extends Controller
                 ->whereMonth('scheduled_date', now()->month)
                 ->whereYear('scheduled_date', now()->year)
                 ->count(),
+            'service_city' => $org->service_city,
+            'service_lat' => $org->service_lat ? (float)$org->service_lat : null,
+            'service_lng' => $org->service_lng ? (float)$org->service_lng : null,
+            'service_radius_km' => $org->service_radius_km,
             'created_at' => $org->created_at,
         ];
     }

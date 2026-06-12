@@ -14,7 +14,9 @@ class Task extends Model
     protected $fillable = [
         'organization_id', 'facility_id', 'type', 'scheduled_date',
         'time_window_start', 'time_window_end', 'priority', 'status',
-        'route_id', 'notes', 'created_by',
+        'route_id', 'notes', 'created_by', 'rider_id',
+        'pickup_name', 'pickup_lat', 'pickup_lng',
+        'dropoff_name', 'dropoff_lat', 'dropoff_lng',
     ];
 
     protected $casts = [
@@ -39,6 +41,11 @@ class Task extends Model
     public function routeStop(): HasOne
     {
         return $this->hasOne(RouteStop::class);
+    }
+
+    public function rider(): BelongsTo
+    {
+        return $this->belongsTo(Rider::class);
     }
 
     public function scopeForDate($query, string $date)

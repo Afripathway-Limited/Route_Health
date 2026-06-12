@@ -1,97 +1,152 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Plus, Truck, Bike, Car, BarChart2, CheckCircle2, AlertTriangle, Pencil } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Search, Truck, Bike, Car, MapPin, Radio,
+  CheckCircle2, XCircle, Plus, Pencil, X, Eye, EyeOff, LogIn,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Drawer } from '@/components/ui/Drawer';
-import { FAB } from '@/components/ui/FAB';
-import { MOCK_RIDERS_NORM as MOCK_RIDERS, MOCK_FACILITIES } from '@/lib/mock-data';
+import { get, post, put, getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 const VEHICLE_ICONS: Record<string, React.ElementType> = {
-  motorbike: Truck,
-  bicycle: Bike,
-  car: Car,
-  van: Truck,
+  motorbike: Truck, bicycle: Bike, car: Car, van: Truck,
+};
+const STATUS_COLORS: Record<string, string> = {
+  on_route: 'brand', free: 'success', busy: 'warning', unavailable: 'gray',
+};
+const STATUS_LABELS: Record<string, string> = {
+  on_route: 'On Route', free: 'Available', busy: 'Busy', unavailable: 'Unavailable',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  active: 'success',
-  on_route: 'brand',
-  inactive: 'gray',
-};
+interface OrgRider {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string;
+  vehicle_type: string;
+  coverage_city: string;
+  coverage_lat: number | null;
+  coverage_lng: number | null;
+  coverage_radius_km: number;
+  availability_status: string;
+  is_active: boolean;
+  has_login: boolean;
+  tasks_this_month: number;
+  on_time_rate: number;
+}
 
 interface RiderForm {
   name: string;
   phone: string;
   vehicle_type: string;
-  home_facility_id: number | null;
+  email: string;
+  password: string;
 }
 
-export default function RidersPage() {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [perfRider, setPerfRider] = useState<typeof MOCK_RIDERS[0] | null>(null);
-  const [editing, setEditing] = useState<any | null>(null);
-  const [riders, setRiders] = useState<any[]>([...MOCK_RIDERS]);
-  const [form, setForm] = useState<RiderForm>({ name: '', phone: '', vehicle_type: 'motorbike', home_facility_id: null });
+const EMPTY_FORM: RiderForm = {
+  name: '', phone: '', vehicle_type: 'motorbike', email: '', password: '',
+};
 
-  const filtered = riders.filter(r => {
-    const matchSearch = !search ||
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.phone.includes(search);
-    const matchStatus = statusFilter === 'all' ||
-      (statusFilter === 'active' && r.is_active && r.status !== 'on_route') ||
-      (statusFilter === 'inactive' && !r.is_active) ||
-      (statusFilter === 'on-route' && r.status === 'on_route');
-    return matchSearch && matchStatus;
-  });
+const inputStyle: React.CSSProperties = {
+  width: '100%', height: 42, background: 'var(--bg-subtle)',
+  border: '1.5px solid var(--border-strong)', borderRadius: 10,
+  fontSize: 13, color: 'var(--text-primary)', outline: 'none',
+  padding: '0 12px', boxSizing: 'border-box',
+};
+
+export default function RidersPage() {
+  const { user } = useAuth();
+  const [search, setSearch]         = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [orgRiders, setOrgRiders]   = useState<OrgRider[]>([]);
+  const [loading, setLoading]       = useState(true);
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editRider, setEditRider]   = useState<OrgRider | null>(null);
+  const [form, setForm]             = useState<RiderForm>(EMPTY_FORM);
+  const [showPass, setShowPass]     = useState(false);
+  const [saving, setSaving]         = useState(false);
+
+  const loadRiders = useCallback(async () => {
+    try {
+      const data = await get<OrgRider[]>('/riders');
+      setOrgRiders(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('Failed to load riders');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadRiders(); }, [loadRiders]);
 
   const openAdd = () => {
-    setEditing(null);
-    setForm({ name: '', phone: '', vehicle_type: 'motorbike', home_facility_id: null });
+    setEditRider(null);
+    setForm(EMPTY_FORM);
+    setShowPass(false);
     setDrawerOpen(true);
   };
 
-  const openEdit = (r: typeof MOCK_RIDERS[0]) => {
-    setEditing(r);
-    setForm({ name: r.name, phone: r.phone, vehicle_type: r.vehicle_type, home_facility_id: r.home_facility_id });
+  const openEdit = (r: OrgRider) => {
+    setEditRider(r);
+    setForm({ name: r.name, phone: r.phone, vehicle_type: r.vehicle_type, email: r.email ?? '', password: '' });
+    setShowPass(false);
     setDrawerOpen(true);
   };
 
-  const handleSave = () => {
-    if (!form.name || !form.phone) {
-      toast.error('Name and phone are required');
-      return;
+  const closeDrawer = () => { setDrawerOpen(false); setEditRider(null); };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    if (!form.phone.trim()) { toast.error('Phone is required'); return; }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      toast.error('Enter a valid email address'); return;
     }
-    if (editing) {
-      setRiders(prev => prev.map(r => r.id === editing.id ? { ...r, ...form } : r));
-      toast.success('Rider updated');
-    } else {
-      const newRider = {
-        ...form, id: Date.now(), user_id: null, organization_id: 1,
-        photo_url: null, is_active: true, status: 'active' as const,
-        tasks_this_month: 0, on_time_rate: 0,
+    if (!editRider && form.email && !form.password) {
+      toast.error('Password is required when setting an email'); return;
+    }
+    if (form.password && form.password.length < 8) {
+      toast.error('Password must be at least 8 characters'); return;
+    }
+
+    setSaving(true);
+    try {
+      const payload: Record<string, string> = {
+        name: form.name,
+        phone: form.phone,
+        vehicle_type: form.vehicle_type,
       };
-      setRiders(prev => [newRider as any, ...prev]);
-      toast.success('Rider added');
+      if (form.email) payload.email = form.email;
+      if (form.password) payload.password = form.password;
+
+      if (editRider) {
+        await put(`/riders/${editRider.id}`, payload);
+        toast.success('Rider updated');
+      } else {
+        await post('/riders', payload);
+        toast.success('Rider added');
+      }
+      closeDrawer();
+      loadRiders();
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    } finally {
+      setSaving(false);
     }
-    setDrawerOpen(false);
   };
 
-  const toggleStatus = (id: number) => {
-    setRiders(prev => prev.map(r => r.id === id ? { ...r, is_active: !r.is_active } : r));
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: '100%', height: 40, background: 'var(--bg-subtle)',
-    border: '1.5px solid var(--border-strong)', borderRadius: 10,
-    fontSize: 13, color: 'var(--text-primary)', outline: 'none',
-    padding: '0 12px', boxSizing: 'border-box',
-  };
+  const filtered = orgRiders.filter(r => {
+    const matchSearch = !search ||
+      r.name.toLowerCase().includes(search.toLowerCase()) ||
+      r.phone.includes(search) ||
+      (r.coverage_city ?? '').toLowerCase().includes(search.toLowerCase()) ||
+      (r.email ?? '').toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === 'all' || r.availability_status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   return (
     <div className="p-4 lg:p-8 animate-fade-up">
@@ -102,13 +157,27 @@ export default function RidersPage() {
             Riders
           </h1>
           <p className="text-[13px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-            {riders.filter(r => r.is_active).length} active · {riders.length} total
+            {orgRiders.filter(r => r.availability_status === 'free').length} available ·{' '}
+            {orgRiders.length} total
+            {user?.organization?.service_city && (
+              <span> · <MapPin size={11} className="inline mb-0.5" /> {user.organization.service_city} ({user.organization.service_radius_km} km)</span>
+            )}
           </p>
         </div>
-        <div className="hidden md:block">
-          <Button onClick={openAdd}><Plus size={14} /> Add Rider</Button>
-        </div>
+        <Button onClick={openAdd} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Plus size={14} /> Add Rider
+        </Button>
       </div>
+
+      {user?.organization?.service_city && (
+        <div className="mb-5 px-4 py-3 rounded-[10px] flex items-center gap-3 text-[13px]"
+          style={{ background: 'var(--brand-subtle)', border: '1px solid var(--brand-border)' }}>
+          <Radio size={15} style={{ color: 'var(--brand)', flexShrink: 0 }} />
+          <span style={{ color: 'var(--brand)' }}>
+            Showing riders whose coverage overlaps with <strong>{user.organization.service_city}</strong> within <strong>{user.organization.service_radius_km} km</strong>
+          </span>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
@@ -119,9 +188,10 @@ export default function RidersPage() {
         </div>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rh-select" style={{ width: 160 }}>
           <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="on-route">On route</option>
-          <option value="inactive">Inactive</option>
+          <option value="free">Available</option>
+          <option value="on_route">On Route</option>
+          <option value="busy">Busy</option>
+          <option value="unavailable">Unavailable</option>
         </select>
       </div>
 
@@ -130,18 +200,15 @@ export default function RidersPage() {
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-              {['Rider', 'Phone', 'Vehicle', 'Home Base', 'Status', 'Tasks / mo.', 'On-time Rate', ''].map(h => (
+              {['Rider', 'Vehicle', 'Coverage Area', 'Status', 'Login', 'Tasks / mo.', 'On-time', 'Active', ''].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider"
-                  style={{ color: 'var(--text-tertiary)' }}>
-                  {h}
-                </th>
+                  style={{ color: 'var(--text-tertiary)' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filtered.map(r => {
               const VehicleIcon = VEHICLE_ICONS[r.vehicle_type] || Truck;
-              const homeFacility = MOCK_FACILITIES.find(f => f.id === r.home_facility_id);
               const rateColor = r.on_time_rate >= 90 ? 'var(--success)' : r.on_time_rate >= 75 ? 'var(--warning)' : 'var(--danger)';
               return (
                 <tr key={r.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}
@@ -153,30 +220,41 @@ export default function RidersPage() {
                         style={{ background: 'var(--brand-subtle)', color: 'var(--brand)' }}>
                         {r.name.charAt(0)}
                       </div>
-                      <span className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{r.name}</span>
+                      <div>
+                        <p className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{r.name}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{r.phone}</p>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 text-[13px]" style={{ color: 'var(--text-secondary)' }}>{r.phone}</td>
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-1.5 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
                       <VehicleIcon size={13} />
                       {r.vehicle_type.charAt(0).toUpperCase() + r.vehicle_type.slice(1)}
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
-                    {homeFacility?.name ?? '—'}
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin size={12} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                      <div>
+                        <p className="text-[13px]" style={{ color: 'var(--text-primary)' }}>{r.coverage_city || '—'}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{r.coverage_radius_km} km radius</p>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3.5">
-                    <button onClick={() => toggleStatus(r.id)}
-                      className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1 rounded-full transition-all"
-                      style={{
-                        background: r.is_active ? 'var(--success-subtle)' : 'var(--bg-subtle)',
-                        color: r.is_active ? 'var(--success)' : 'var(--text-tertiary)',
-                        border: `1px solid ${r.is_active ? 'var(--success-border)' : 'var(--border-subtle)'}`,
-                      }}>
-                      {r.is_active ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
-                      {r.status === 'on_route' ? 'On Route' : r.is_active ? 'Active' : 'Inactive'}
-                    </button>
+                    <Badge color={STATUS_COLORS[r.availability_status] as any}>
+                      {STATUS_LABELS[r.availability_status] ?? r.availability_status}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3.5">
+                    {r.has_login ? (
+                      <div className="flex items-center gap-1.5">
+                        <LogIn size={13} style={{ color: 'var(--success)' }} />
+                        <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>{r.email ?? '—'}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>No login</span>
+                    )}
                   </td>
                   <td className="px-4 py-3.5">
                     <span className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>{r.tasks_this_month}</span>
@@ -190,31 +268,29 @@ export default function RidersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-1.5">
-                      <button onClick={() => openEdit(r)}
-                        className="w-7 h-7 rounded-[7px] flex items-center justify-center transition-all"
-                        style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
-                        onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'var(--bg-hover)'; el.style.color = 'var(--text-primary)'; }}
-                        onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'none'; el.style.color = 'var(--text-tertiary)'; }}>
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => setPerfRider(r)}
-                        className="w-7 h-7 rounded-[7px] flex items-center justify-center transition-all"
-                        style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
-                        onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'var(--bg-hover)'; el.style.color = 'var(--text-primary)'; }}
-                        onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.background = 'none'; el.style.color = 'var(--text-tertiary)'; }}>
-                        <BarChart2 size={13} />
-                      </button>
-                    </div>
+                    {r.is_active
+                      ? <CheckCircle2 size={16} style={{ color: 'var(--success)' }} />
+                      : <XCircle size={16} style={{ color: 'var(--text-muted)' }} />}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <button onClick={() => openEdit(r)}
+                      className="flex items-center gap-1.5 text-[12px] font-medium px-2.5 py-1.5 rounded-[7px] transition-colors"
+                      style={{ color: 'var(--brand)', background: 'var(--brand-subtle)', border: 'none', cursor: 'pointer' }}>
+                      <Pencil size={12} /> Edit
+                    </button>
                   </td>
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+            {loading && (
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-[13px]" style={{ color: 'var(--text-tertiary)' }}>Loading…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center">
+                <td colSpan={9} className="px-4 py-12 text-center">
                   <Truck size={32} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-                  <p className="text-[14px] font-medium" style={{ color: 'var(--text-secondary)' }}>No riders found</p>
+                  <p className="text-[14px] font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>No riders found</p>
+                  <p className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>Try adjusting your filters or add a new rider</p>
                 </td>
               </tr>
             )}
@@ -228,105 +304,138 @@ export default function RidersPage() {
           const rateColor = r.on_time_rate >= 90 ? 'var(--success)' : r.on_time_rate >= 75 ? 'var(--warning)' : 'var(--danger)';
           return (
             <div key={r.id} className="rounded-[12px] p-4" style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-card)' }}>
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold flex-shrink-0"
                   style={{ background: 'var(--brand-subtle)', color: 'var(--brand)' }}>
                   {r.name.charAt(0)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{r.name}</p>
-                  <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>{r.phone} · {r.vehicle_type}</p>
+                  <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>{r.phone}</p>
+                  {r.email && <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>{r.email}</p>}
                 </div>
-                <div className="text-right">
-                  <p className="text-[14px] font-bold" style={{ color: rateColor }}>{r.on_time_rate}%</p>
-                  <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>on-time</p>
+                <div className="flex flex-col items-end gap-1.5">
+                  <Badge color={STATUS_COLORS[r.availability_status] as any}>{STATUS_LABELS[r.availability_status]}</Badge>
+                  <span className="text-[12px] font-bold" style={{ color: rateColor }}>{r.on_time_rate}%</span>
+                  <button onClick={() => openEdit(r)}
+                    className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-[6px]"
+                    style={{ color: 'var(--brand)', background: 'var(--brand-subtle)', border: 'none', cursor: 'pointer' }}>
+                    <Pencil size={11} /> Edit
+                  </button>
                 </div>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <button onClick={() => openEdit(r)} className="flex-1 text-[12px] font-medium py-1.5 rounded-[8px] transition-all"
-                  style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>
-                  Edit
-                </button>
-                <button onClick={() => setPerfRider(r)} className="flex-1 text-[12px] font-medium py-1.5 rounded-[8px] transition-all"
-                  style={{ background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>
-                  Performance
-                </button>
               </div>
             </div>
           );
         })}
       </div>
 
-      <FAB onClick={openAdd} label="Add Rider"><Plus size={22} /></FAB>
-
       {/* Add / Edit Drawer */}
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title={editing ? `Edit — ${editing.name}` : 'Add Rider'}>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Full name *</label>
-            <Input placeholder="e.g. David Kamau" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
-          </div>
-          <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Phone *</label>
-            <Input placeholder="+254 700 000000" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
-          </div>
-          <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Vehicle type</label>
-            <select value={form.vehicle_type} onChange={e => setForm(p => ({ ...p, vehicle_type: e.target.value }))} className="rh-select">
-              <option value="motorbike">Motorbike</option>
-              <option value="bicycle">Bicycle</option>
-              <option value="car">Car</option>
-              <option value="van">Van</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Home facility</label>
-            <select value={form.home_facility_id ?? ''} onChange={e => setForm(p => ({ ...p, home_facility_id: e.target.value ? Number(e.target.value) : null }))} className="rh-select">
-              <option value="">None</option>
-              {MOCK_FACILITIES.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-          </div>
-          <div className="pt-2 flex gap-3">
-            <Button variant="secondary" onClick={() => setDrawerOpen(false)} className="flex-1">Cancel</Button>
-            <Button onClick={handleSave} className="flex-1">{editing ? 'Save Changes' : 'Add Rider'}</Button>
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-md rounded-[18px] overflow-hidden"
+            style={{ background: 'var(--bg-surface)', boxShadow: 'var(--shadow-modal)' }}>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+              <h2 className="text-[16px] font-bold" style={{ color: 'var(--text-primary)' }}>
+                {editRider ? 'Edit Rider' : 'Add Rider'}
+              </h2>
+              <button onClick={closeDrawer} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 160px)' }}>
+              {/* Name */}
+              <div>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Full Name *
+                </label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. David Kamau" style={inputStyle} />
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Phone *
+                </label>
+                <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="+254 7XX XXX XXX" style={inputStyle} />
+              </div>
+
+              {/* Vehicle type */}
+              <div>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Vehicle Type *
+                </label>
+                <select value={form.vehicle_type} onChange={e => setForm(f => ({ ...f, vehicle_type: e.target.value }))}
+                  className="rh-select" style={{ width: '100%', height: 42 }}>
+                  <option value="motorbike">Motorbike</option>
+                  <option value="bicycle">Bicycle</option>
+                  <option value="car">Car</option>
+                  <option value="van">Van</option>
+                </select>
+              </div>
+
+              {/* Divider */}
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 4 }}>
+                <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                  Login Credentials
+                </p>
+                <p className="text-[12px] mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                  {editRider
+                    ? editRider.has_login
+                      ? 'Update the rider\'s email or set a new password.'
+                      : 'Add an email + password so this rider can log in to the app.'
+                    : 'Provide email and password so the rider can log in immediately.'}
+                </p>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Email {editRider && !editRider.has_login ? '' : editRider ? '(optional to change)' : '*'}
+                </label>
+                <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="rider@example.com" style={inputStyle} />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-[12px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Password {editRider ? '(leave blank to keep current)' : ''}
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder={editRider ? 'New password (optional)' : 'Min. 8 characters'}
+                    style={{ ...inputStyle, paddingRight: 42 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(v => !v)}
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
+                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 flex gap-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+              <Button variant="secondary" onClick={closeDrawer} className="flex-1">Cancel</Button>
+              <Button onClick={handleSave} disabled={saving} className="flex-1">
+                {saving ? 'Saving…' : editRider ? 'Save Changes' : 'Add Rider'}
+              </Button>
+            </div>
           </div>
         </div>
-      </Drawer>
-
-      {/* Performance Drawer */}
-      <Drawer open={!!perfRider} onClose={() => setPerfRider(null)} title={`Performance — ${perfRider?.name ?? ''}`}>
-        {perfRider && (() => {
-          const rate = perfRider.on_time_rate;
-          const rateColor = rate >= 90 ? 'var(--success)' : rate >= 75 ? 'var(--warning)' : 'var(--danger)';
-          const circumference = 2 * Math.PI * 36;
-          const strokeDash = circumference - (rate / 100) * circumference;
-          return (
-            <div className="space-y-5">
-              <div className="flex flex-col items-center py-4">
-                <svg width="96" height="96" viewBox="0 0 96 96">
-                  <circle cx="48" cy="48" r="36" fill="none" stroke="var(--bg-subtle)" strokeWidth="8" />
-                  <circle cx="48" cy="48" r="36" fill="none" stroke={rateColor} strokeWidth="8"
-                    strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDash}
-                    transform="rotate(-90 48 48)" style={{ transition: 'stroke-dashoffset 1s ease' }} />
-                </svg>
-                <p className="text-[28px] font-bold -mt-2" style={{ color: rateColor }}>{rate}%</p>
-                <p className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>On-time rate</p>
-              </div>
-              {[
-                { label: 'Tasks this month', value: perfRider.tasks_this_month },
-                { label: 'Vehicle', value: perfRider.vehicle_type },
-                { label: 'Status', value: perfRider.is_active ? 'Active' : 'Inactive' },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between py-3 px-4 rounded-[10px]"
-                  style={{ background: 'var(--bg-subtle)' }}>
-                  <span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                  <span className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>{value}</span>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-      </Drawer>
+      )}
     </div>
   );
 }

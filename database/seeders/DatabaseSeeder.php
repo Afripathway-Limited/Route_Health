@@ -10,8 +10,11 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RolesAndPermissionsSeeder::class,
+            SubscriptionPlansSeeder::class,
+            CountriesSeeder::class,
             SuperAdminSeeder::class,
             DemoOrganizationSeeder::class,
+            PlatformRidersSeeder::class,
         ]);
     }
 }

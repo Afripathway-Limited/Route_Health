@@ -17,6 +17,7 @@ class UserManagementController extends Controller
         $orgId = $request->user()->organization_id;
 
         $users = User::where('organization_id', $orgId)
+            ->whereDoesntHave('roles', fn($q) => $q->where('name', 'org_admin'))
             ->with('roles')
             ->latest()
             ->get();
@@ -29,30 +30,25 @@ class UserManagementController extends Controller
         $orgId = $request->user()->organization_id;
 
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'role' => 'required|in:org_admin,dispatcher',
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|unique:users,email',
+            'phone'    => 'nullable|string|max:20',
+            'password' => 'required|string|min:8',
         ]);
-
-        $tempPassword = Str::random(12);
 
         $user = User::create([
             'organization_id' => $orgId,
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => bcrypt($tempPassword),
+            'name'     => $request->name,
+            'email'    => $request->email,
+            'phone'    => $request->phone,
+            'password' => bcrypt($request->password),
             'is_active' => true,
-            'requires_password_change' => true,
+            'requires_password_change' => false,
         ]);
 
-        $user->assignRole($request->role);
+        $user->assignRole('dispatcher');
 
-        $org = $request->user()->organization;
-        if ($org) {
-            Mail::to($user->email)->queue(new InviteUserMail($user, $tempPassword, $org));
-        }
-
-        return $this->success($this->formatUser($user->load('roles')), 'User invited successfully', 201);
+        return $this->success($this->formatUser($user->load('roles')), 'User created successfully', 201);
     }
 
     public function updateRole(Request $request, User $user): JsonResponse

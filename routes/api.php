@@ -20,12 +20,16 @@ use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\UserManagementController;
 use App\Http\Controllers\Api\WhatsAppWebhookController;
+use App\Http\Controllers\Api\CountriesController;
+use App\Http\Controllers\Api\SuperAdminRiderController;
 use Illuminate\Support\Facades\Route;
 
 // ─── Public ───────────────────────────────────────────────────────────────────
+Route::get('/countries', [CountriesController::class, 'index']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/auth/accept-invitation', [AuthController::class, 'acceptInvitation']);
 
 // WhatsApp webhook (no auth — Twilio signs these requests)
 Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle']);
@@ -48,6 +52,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureOrganizationActive
         Route::post('organizations/{organization}/plan', [SubscriptionPlanController::class, 'assignPlan']);
         Route::get('organizations/{organization}/invoices', [SubscriptionPlanController::class, 'orgInvoices']);
         Route::get('/users', [OrganizationController::class, 'platformUsers']);
+        Route::patch('/users/{user}/activate', [OrganizationController::class, 'activateUser']);
+        Route::patch('/users/{user}/deactivate', [OrganizationController::class, 'deactivateUser']);
 
         // Subscription plans
         Route::apiResource('plans', SubscriptionPlanController::class);
@@ -77,6 +83,10 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureOrganizationActive
         Route::get('/tickets', [SupportTicketController::class, 'adminIndex']);
         Route::patch('/tickets/{ticket}', [SupportTicketController::class, 'adminUpdate']);
         Route::post('/tickets/{ticket}/messages', [SupportTicketController::class, 'addMessage']);
+
+        // Platform-level riders management
+        Route::apiResource('riders', SuperAdminRiderController::class);
+        Route::post('riders/{rider}/resend-invitation', [SuperAdminRiderController::class, 'resendInvitation']);
     });
 
     // ─── Organization Scoped (Admin + Dispatcher + Lab Manager) ────────────
@@ -158,6 +168,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureOrganizationActive
             Route::delete('tasks/{task}', [TaskController::class, 'destroy']);
             Route::post('tasks/bulk-upload', [TaskController::class, 'bulkUpload']);
             Route::patch('tasks/{task}/reassign', [TaskController::class, 'reassign']);
+            Route::patch('tasks/{task}/assign-rider', [TaskController::class, 'assignRider']);
 
             // Routes
             Route::get('routes', [RouteController::class, 'index']);
